@@ -10,5 +10,7 @@ Extra library of network protocols for the Ergo Framework
 ## erlang
 The Erlang Network Stack (EPMD, ETF and DIST) implementation for the Ergo Framework 
 
+License: [BUSL 1.1](erlang/LICENSE)
+
 Doc: https://docs.ergo.services/extra-library/proto/erlang
 
