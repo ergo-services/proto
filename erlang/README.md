@@ -3,6 +3,6 @@
 
 The Erlang Network Stack (EPMD, ETF and DIST) implementation for the Ergo Framework
 
-Doc: https://docs.ergo.services/extra-library/proto/erlang
+Doc: https://docs.ergo.services/extra-library/network-protocols/erlang
 
 
