@@ -1,7 +1,10 @@
 package dist
 
-// Distributed operations codes (http://www.erlang.org/doc/apps/erts/erl_dist_protocol.html)
 const (
+	protoName    string = "DIST" // Erlang DIST protocol
+	protoRelease string = "R6"   //
+
+	// Distributed operations codes (http://www.erlang.org/doc/apps/erts/erl_dist_protocol.html)
 	distProtoLINK                   = 1
 	distProtoSEND                   = 2
 	distProtoEXIT                   = 3
@@ -32,10 +35,4 @@ const (
 	distProtoALIAS_SEND_TT          = 34
 	distProtoUNLINK_ID              = 35
 	distProtoUNLINK_ID_ACK          = 36
-
-	// ergo operations codes
-	distProtoPROXY_CONNECT_REQUEST = 101
-	distProtoPROXY_CONNECT_REPLY   = 102
-	distProtoPROXY_CONNECT_CANCEL  = 103
-	distProtoPROXY_DISCONNECT      = 104
 )

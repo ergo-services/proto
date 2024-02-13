@@ -7,7 +7,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ergo-services/ergo/lib"
+	"ergo.services/ergo/gen"
+	"ergo.services/ergo/lib"
 )
 
 var (
@@ -707,7 +708,7 @@ func RegisterType(t interface{}, options RegisterTypeOptions) (Atom, error) {
 
 	_, taken := registered.typesDec[name]
 	if taken {
-		return name, lib.ErrTaken
+		return name, gen.ErrTaken
 	}
 
 	r, taken := registered.typesEnc[origin]
@@ -780,7 +781,7 @@ func UnregisterType(name Atom) error {
 	defer registered.Unlock()
 	r, found := registered.typesDec[name]
 	if found == false {
-		return lib.ErrUnknown
+		return gen.ErrUnknown
 	}
 	delete(registered.typesDec, name)
 	delete(registered.typesEnc, r.origin)

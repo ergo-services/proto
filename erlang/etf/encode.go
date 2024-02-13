@@ -7,7 +7,7 @@ import (
 	"math/big"
 	"reflect"
 
-	"github.com/ergo-services/ergo/lib"
+	"ergo.services/ergo/lib"
 )
 
 var (
@@ -49,7 +49,7 @@ type EncodeOptions struct {
 
 // Encode
 func Encode(term Term, b *lib.Buffer, options EncodeOptions) (retErr error) {
-	if lib.CatchPanic() {
+	if lib.Recover() {
 		defer func() {
 			// We should catch any panic happened during encoding Golang types.
 			if r := recover(); r != nil {

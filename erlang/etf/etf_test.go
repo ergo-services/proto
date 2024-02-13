@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ergo-services/ergo/lib"
+	"ergo.services/ergo/gen"
+	"ergo.services/ergo/lib"
 )
 
 func TestTermIntoStruct_Slice(t *testing.T) {
@@ -895,7 +896,7 @@ func registerTypes(types []interface{}) error {
 	rtOpts := RegisterTypeOptions{Strict: true}
 
 	for _, t := range types {
-		if _, err := RegisterType(t, rtOpts); err != nil && err != lib.ErrTaken {
+		if _, err := RegisterType(t, rtOpts); err != nil && err != gen.ErrTaken {
 			return err
 		}
 	}

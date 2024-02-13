@@ -7,7 +7,7 @@ import (
 	"math/big"
 	"reflect"
 
-	"github.com/ergo-services/ergo/lib"
+	"ergo.services/ergo/lib"
 )
 
 // linked list for decoding complex types like list/map/tuple
@@ -83,7 +83,7 @@ func Decode(packet []byte, cache []Atom, options DecodeOptions) (retTerm Term, r
 	var stack *stackElement
 	var child *stackElement
 	var t byte
-	if lib.CatchPanic() {
+	if lib.Recover() {
 		defer func() {
 			// We should catch any panic happened during decoding the raw data.
 			// Some of the Erlang' types can not be supported in Golang.
@@ -1630,7 +1630,7 @@ func Decode(packet []byte, cache []Atom, options DecodeOptions) (retTerm Term, r
 					} else {
 						// wrap it to catch the panic
 						setValue := func(f reflect.Value, v interface{}) (ok bool) {
-							if lib.CatchPanic() {
+							if lib.Recover() {
 								defer func() {
 									if r := recover(); r != nil {
 										ok = false

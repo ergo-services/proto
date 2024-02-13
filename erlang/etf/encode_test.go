@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/ergo-services/ergo/lib"
+	"ergo.services/ergo/lib"
 )
 
 func TestEncodeBool(t *testing.T) {
