@@ -1,23 +1,26 @@
 package epmd
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 
 	"ergo.services/ergo/gen"
 )
 
 type Options struct {
-	Port          uint16
-	DisableServer bool
+	Port           uint16
+	EnableRouteTLS bool
+	DisableServer  bool
 }
 
 func CreateClient(options Options) gen.RegistrarClient {
 	if options.Port == 0 {
-		options.Port = defaultRegistrarPort
+		options.Port = defaultEPMDPort
 	}
 	client := &client{
 		options:    options,
@@ -29,8 +32,6 @@ func CreateClient(options Options) gen.RegistrarClient {
 
 type client struct {
 	node gen.NodeRegistrar
-
-	routes []gen.Route
 
 	options Options
 
@@ -44,10 +45,17 @@ type client struct {
 // gen.Resolver interface implementation
 //
 
-func (c *client) Resolve(name gen.Atom) ([]gen.Route, error) {
+func (c *client) Resolve(nodename gen.Atom) ([]gen.Route, error) {
 	if c.terminated {
 		return nil, fmt.Errorf("EPMD client terminated")
 	}
+
+	n := strings.Split(string(nodename), "@")
+	if len(n) != 2 || len(n[0]) == 0 || len(n[1]) == 0 {
+		return nil, fmt.Errorf("incorrect FQDN node name (example: node@localhost)")
+	}
+	host := n[1]
+	name := n[0]
 
 	srv := c.server
 	if srv != nil {
@@ -55,19 +63,29 @@ func (c *client) Resolve(name gen.Atom) ([]gen.Route, error) {
 		return srv.resolve(name, true)
 	}
 
-	host := name.Host()
-	if host == "" {
-		return nil, gen.ErrIncorrect
-	}
 	dsn := net.JoinHostPort(host, strconv.Itoa(int(c.options.Port)))
-	c.node.Log().Trace("resolving %s using EPMD %s", name, dsn)
-	conn, err := net.Dial("udp", dsn)
+	c.node.Log().Trace("resolving %s using EPMD %s", nodename, dsn)
+	conn, err := net.Dial("tcp", dsn)
 	if err != nil {
 		return nil, err
 	}
 	defer conn.Close()
 
-	return nil, nil
+	if err := c.sendPortPleaseReq(conn, name); err != nil {
+		return nil, err
+	}
+
+	port, err := c.readPortResp(conn)
+	if err != nil {
+		return nil, err
+	}
+	route := gen.Route{
+		Host: host,
+		Port: port,
+		TLS:  c.options.EnableRouteTLS,
+	}
+
+	return []gen.Route{route}, nil
 }
 
 func (c *client) ResolveApplication(name gen.Atom) ([]gen.ApplicationRoute, error) {
@@ -124,15 +142,9 @@ func (c *client) Register(node gen.NodeRegistrar, routes gen.RegisterRoutes) (ge
 	var static gen.StaticRoutes
 
 	c.node = node
-	c.routes = routes.Routes
 
 	if c.terminated == false {
 		return static, fmt.Errorf("already started")
-	}
-
-	if len(c.routes) == 0 {
-		// hidden mode. do not register node
-		return static, nil
 	}
 
 	rc, err := c.tryRegister()
@@ -150,7 +162,7 @@ func (c *client) Register(node gen.NodeRegistrar, routes gen.RegisterRoutes) (ge
 
 func (c *client) Terminate() {
 	if c.server != nil {
-		c.node.Log().Trace("terminate registrar server")
+		c.node.Log().Trace("terminate EPMD server")
 		// c.server.terminate()
 	}
 	if c.conn != nil {
@@ -158,7 +170,7 @@ func (c *client) Terminate() {
 	}
 
 	c.terminated = true
-	c.node.Log().Trace("registrar client terminated")
+	c.node.Log().Trace("EPMD client terminated")
 }
 
 func (c *client) Version() gen.Version {
@@ -185,6 +197,16 @@ func (c *client) tryRegister() (net.Conn, error) {
 	dsn := net.JoinHostPort("localhost", strconv.Itoa(int(c.options.Port)))
 	conn, err := dialer.Dial("tcp", dsn)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := c.sendAliveReq(conn); err != nil {
+		conn.Close()
+		return nil, err
+	}
+
+	if err := c.readAliveResp(conn); err != nil {
+		conn.Close()
 		return nil, err
 	}
 
@@ -232,4 +254,68 @@ func (c *client) serve(conn net.Conn) {
 		}
 
 	}
+}
+func (c *client) sendPortPleaseReq(conn net.Conn, name string) error {
+	buflen := uint16(2 + len(name) + 1)
+	buf := make([]byte, buflen)
+	binary.BigEndian.PutUint16(buf[0:2], uint16(len(buf)-2))
+	buf[2] = byte(epmdPortPleaseReq)
+	copy(buf[3:buflen], name)
+	_, err := conn.Write(buf)
+	return err
+}
+
+func (c *client) readPortResp(conn net.Conn) (uint16, error) {
+	var port uint16
+	buf := make([]byte, 1024)
+	n, err := conn.Read(buf)
+	if err != nil && err != io.EOF {
+		return 0, fmt.Errorf("reading from link - %s", err)
+	}
+	if n < 5 {
+		return 0, gen.ErrMalformed
+	}
+	buf = buf[:n]
+	if buf[0] != epmdPortResp {
+		return 0, gen.ErrMalformed
+	}
+	if buf[1] > 0 {
+		return 0, gen.ErrNameUnknown
+	}
+
+	port = binary.BigEndian.Uint16(buf[2:4])
+	// TODO should we care of the rest data?
+	return port, nil
+}
+
+func (c *client) sendAliveReq(conn net.Conn) error {
+	buf := make([]byte, 2+14+len(e.nodeName)+len(e.extra))
+	binary.BigEndian.PutUint16(buf[0:2], uint16(len(buf)-2))
+	buf[2] = byte(epmdAliveReq)
+	binary.BigEndian.PutUint16(buf[3:5], e.nodePort)
+	// http://erlang.org/doc/reference_manual/distributed.html (section 13.5)
+	// 77 — regular public node, 72 — hidden
+	// We use a regular one
+	buf[5] = 77
+	// Protocol TCP
+	buf[6] = 0
+	// HighestVersion
+	binary.BigEndian.PutUint16(buf[7:9], uint16(HandshakeVersion6))
+	// LowestVersion
+	binary.BigEndian.PutUint16(buf[9:11], uint16(HandshakeVersion5))
+	// length Node name
+	l := len(e.nodeName)
+	binary.BigEndian.PutUint16(buf[11:13], uint16(l))
+	// Node name
+	offset := (13 + l)
+	copy(buf[13:offset], e.nodeName)
+	// Extra data
+	l = len(e.extra)
+	binary.BigEndian.PutUint16(buf[offset:offset+2], uint16(l))
+	copy(buf[offset+2:offset+2+l], e.extra)
+	// Send
+	if _, err := conn.Write(buf); err != nil {
+		return err
+	}
+	return nil
 }
