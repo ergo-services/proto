@@ -13,7 +13,7 @@ import (
 type GenServerBehavior interface {
 	gen.ProcessBehavior
 
-	// Init invoked on a spawn Actor for the initializing.
+	// Init invoked on a spawn GenServer for the initializing.
 	Init(args ...any) error
 
 	HandleInfo(message any) error
@@ -29,11 +29,11 @@ type GenServerBehavior interface {
 	HandleInspect(from gen.PID) map[string]string
 }
 
-// Actor implementats ProcessBehavior interface and provides callbacks for
+// GenServer implementats ProcessBehavior interface and provides callbacks for
 // - initialization
 // - handling messages/requests.
 // - termination
-// All callbacks of the ActorBehavior are optional for the implementation.
+// All callbacks of the GenServerBehavior are optional for the implementation.
 type GenServer struct {
 	gen.Process
 
