@@ -254,7 +254,7 @@ func (gs *GenServer) HandleCast(message any) error {
 	return nil
 }
 
-func (gs *GenServer) HandleInspect(from gen.PID) map[string]string {
+func (gs *GenServer) HandleInspect(from gen.PID, item ...string) map[string]string {
 	return nil
 }
 
