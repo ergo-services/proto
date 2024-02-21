@@ -1,6 +1,8 @@
 package epmd
 
 import (
+	"net"
+
 	"ergo.services/ergo/gen"
 	"ergo.services/ergo/lib"
 )
@@ -13,6 +15,7 @@ type registeredNode struct {
 	extra  []byte
 }
 type server struct {
+	socket     net.Listener
 	port       uint16
 	nodes      lib.Map[string, *registeredNode]
 	terminated bool
@@ -23,4 +26,10 @@ func tryStartServer(port uint16, log gen.Log) *server {
 	srv := &server{}
 
 	return srv
+}
+
+func (s *server) resolve(name gen.Atom, docopy bool) ([]gen.Route, error) {
+	var routes []gen.Route
+
+	return routes, nil
 }

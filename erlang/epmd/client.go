@@ -18,7 +18,7 @@ type Options struct {
 	DisableServer  bool
 }
 
-func CreateClient(options Options) gen.RegistrarClient {
+func Create(options Options) gen.Registrar {
 	if options.Port == 0 {
 		options.Port = defaultEPMDPort
 	}
@@ -31,7 +31,8 @@ func CreateClient(options Options) gen.RegistrarClient {
 }
 
 type client struct {
-	node gen.NodeRegistrar
+	node   gen.NodeRegistrar
+	hidden bool
 
 	options Options
 
@@ -60,15 +61,16 @@ func (c *client) Resolve(nodename gen.Atom) ([]gen.Route, error) {
 	srv := c.server
 	if srv != nil {
 		c.node.Log().Trace("resolving %s using local EPMD server", name)
-		return srv.resolve(name, true)
+		return srv.resolve(gen.Atom(name), true)
 	}
 
 	dsn := net.JoinHostPort(host, strconv.Itoa(int(c.options.Port)))
 	c.node.Log().Trace("resolving %s using EPMD %s", nodename, dsn)
-	conn, err := net.Dial("tcp", dsn)
+	conn, err := net.Dial("tcp", net.JoinHostPort(n[1], fmt.Sprintf("%d", c.options.Port)))
 	if err != nil {
 		return nil, err
 	}
+
 	defer conn.Close()
 
 	if err := c.sendPortPleaseReq(conn, name); err != nil {
@@ -128,10 +130,19 @@ func (c *client) Event() (gen.Event, error) {
 	return gen.Event{}, gen.ErrUnsupported
 }
 func (c *client) Info() gen.RegistrarInfo {
-	return gen.RegistrarInfo{
-		LocalServer: c.server != nil,
-		Version:     c.Version(),
+	info := gen.RegistrarInfo{
+		EmbeddedServer: c.server != nil,
+		Version:        c.Version(),
 	}
+	conn := c.conn
+	if conn != nil {
+		info.Server = conn.RemoteAddr().String()
+		return info
+	}
+	if info.EmbeddedServer {
+		info.Server = c.server.socket.Addr().String()
+	}
+	return info
 }
 
 //
@@ -142,6 +153,7 @@ func (c *client) Register(node gen.NodeRegistrar, routes gen.RegisterRoutes) (ge
 	var static gen.StaticRoutes
 
 	c.node = node
+	c.hidden = len(routes.Routes) == 0
 
 	if c.terminated == false {
 		return static, fmt.Errorf("already started")
@@ -238,18 +250,18 @@ func (c *client) serve(conn net.Conn) {
 			}
 			conn, err := c.tryRegister()
 			if err != nil {
-				c.node.Log().Error("unable to register node on the registrar: %s", err)
+				c.node.Log().Error("unable to register node on the EPMD: %s", err)
 				time.Sleep(time.Second)
 				continue
 			}
 
 			if conn == nil {
 				// use the local registrar server
-				c.node.Log().Info("registered node on the local registrar")
+				c.node.Log().Info("registered node on the local EPMD")
 				return
 			}
 			c.conn = conn
-			c.node.Log().Info("registered node on the registrar")
+			c.node.Log().Info("registered node on the EPMD")
 			break
 		}
 
@@ -289,33 +301,52 @@ func (c *client) readPortResp(conn net.Conn) (uint16, error) {
 }
 
 func (c *client) sendAliveReq(conn net.Conn) error {
-	buf := make([]byte, 2+14+len(e.nodeName)+len(e.extra))
+	buf := make([]byte, 2+14+len(c.node.Name()))
 	binary.BigEndian.PutUint16(buf[0:2], uint16(len(buf)-2))
 	buf[2] = byte(epmdAliveReq)
-	binary.BigEndian.PutUint16(buf[3:5], e.nodePort)
+	binary.BigEndian.PutUint16(buf[3:5], c.options.Port)
 	// http://erlang.org/doc/reference_manual/distributed.html (section 13.5)
 	// 77 — regular public node, 72 — hidden
 	// We use a regular one
-	buf[5] = 77
+	if c.hidden {
+		buf[5] = 72
+	} else {
+		buf[5] = 77
+	}
 	// Protocol TCP
 	buf[6] = 0
 	// HighestVersion
-	binary.BigEndian.PutUint16(buf[7:9], uint16(HandshakeVersion6))
+	binary.BigEndian.PutUint16(buf[7:9], 6)
 	// LowestVersion
-	binary.BigEndian.PutUint16(buf[9:11], uint16(HandshakeVersion5))
+	binary.BigEndian.PutUint16(buf[9:11], 5)
 	// length Node name
-	l := len(e.nodeName)
+	l := len(c.node.Name())
 	binary.BigEndian.PutUint16(buf[11:13], uint16(l))
 	// Node name
 	offset := (13 + l)
-	copy(buf[13:offset], e.nodeName)
-	// Extra data
-	l = len(e.extra)
-	binary.BigEndian.PutUint16(buf[offset:offset+2], uint16(l))
-	copy(buf[offset+2:offset+2+l], e.extra)
+	copy(buf[13:offset], []byte(c.node.Name()))
 	// Send
 	if _, err := conn.Write(buf); err != nil {
 		return err
+	}
+	return nil
+}
+
+func (c *client) readAliveResp(conn net.Conn) error {
+	buf := make([]byte, 16)
+	if _, err := conn.Read(buf); err != nil {
+		return err
+	}
+	switch buf[0] {
+	case epmdAliveResp, epmdAliveRespX:
+	default:
+		return fmt.Errorf("malformed EPMD response %v", buf)
+	}
+	if buf[1] != 0 {
+		if buf[1] == 1 {
+			return fmt.Errorf("can not register node %s, name is taken", c.node.Name())
+		}
+		return fmt.Errorf("can not register %s, code: %d", c.node.Name(), buf[1])
 	}
 	return nil
 }
