@@ -26,7 +26,7 @@ type GenServerBehavior interface {
 	HandleEvent(message gen.MessageEvent) error
 
 	// HandleInspect invoked on the request made with gen.Process.Inspect(...)
-	HandleInspect(from gen.PID) map[string]string
+	HandleInspect(from gen.PID, item ...string) map[string]string
 }
 
 // GenServer implementats ProcessBehavior interface and provides callbacks for
