@@ -220,7 +220,7 @@ func (gs *GenServer) ProcessRun() (rr error) {
 			}
 
 		case gen.MailboxMessageTypeInspect:
-			result := gs.behavior.HandleInspect(message.From)
+			result := gs.behavior.HandleInspect(message.From, message.Message.([]string)...)
 			gs.SendResponse(message.From, message.Ref, result)
 		}
 
