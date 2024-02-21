@@ -143,7 +143,7 @@ func (gs *GenServer) ProcessRun() (rr error) {
 		switch message.Type {
 		case gen.MailboxMessageTypeRegular:
 			var reason error
-
+			// TODO check if is a cast message and invoke HandleCast for that
 			reason = gs.behavior.HandleInfo(message.Message)
 			if reason != nil {
 				return reason
