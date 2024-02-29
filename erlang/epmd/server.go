@@ -19,11 +19,15 @@ type server struct {
 	port       uint16
 	nodes      lib.Map[string, *registeredNode]
 	terminated bool
+	log        gen.Log
 }
 
 func tryStartServer(port uint16, log gen.Log) *server {
 
-	srv := &server{}
+	srv := &server{
+		port: port,
+		log:  log,
+	}
 
 	return srv
 }

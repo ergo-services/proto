@@ -8,9 +8,7 @@ func CreateApp() gen.ApplicationBehavior {
 	return &supportApp{}
 }
 
-type supportApp struct {
-	node gen.Node
-}
+type supportApp struct{}
 
 func (sa *supportApp) Load(node gen.Node, args ...any) (gen.ApplicationSpec, error) {
 	return gen.ApplicationSpec{
