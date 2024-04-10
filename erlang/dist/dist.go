@@ -69,9 +69,5 @@ func (d *dist) Serve(c gen.Connection, dial gen.NetworkDial) error {
 }
 
 func (d *dist) Version() gen.Version {
-	return gen.Version{
-		Name:    protoName,
-		Release: protoRelease,
-		License: gen.LicenseMIT,
-	}
+	return Version
 }

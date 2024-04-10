@@ -14,9 +14,5 @@ func Create(options Options) gen.NetworkHandshake {
 }
 
 func (h *handshake) Version() gen.Version {
-	return gen.Version{
-		Name:    handshakeName,
-		Release: handshakeRelease,
-		License: gen.LicenseBSL1,
-	}
+	return Version
 }

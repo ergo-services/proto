@@ -10,6 +10,9 @@ import (
 	"time"
 
 	"ergo.services/ergo/gen"
+
+	"ergo.services/proto/erlang/dist"
+	"ergo.services/proto/erlang/handshake"
 )
 
 type Options struct {
@@ -33,6 +36,7 @@ func Create(options Options) gen.Registrar {
 type client struct {
 	node   gen.NodeRegistrar
 	hidden bool
+	route  gen.Route
 
 	options Options
 
@@ -61,7 +65,16 @@ func (c *client) Resolve(nodename gen.Atom) ([]gen.Route, error) {
 	srv := c.server
 	if srv != nil {
 		c.node.Log().Trace("resolving %s using local EPMD server", name)
-		return srv.resolve(gen.Atom(name), true)
+		routes, err := srv.resolve(name)
+		if err != nil {
+			return routes, err
+		}
+		routes[0].Host = host
+		routes[0].HandshakeVersion = handshake.Version
+		routes[0].ProtoVersion = dist.Version
+		routes[0].TLS = c.options.EnableRouteTLS
+
+		return routes, nil
 	}
 
 	dsn := net.JoinHostPort(host, strconv.Itoa(int(c.options.Port)))
@@ -82,9 +95,11 @@ func (c *client) Resolve(nodename gen.Atom) ([]gen.Route, error) {
 		return nil, err
 	}
 	route := gen.Route{
-		Host: host,
-		Port: port,
-		TLS:  c.options.EnableRouteTLS,
+		Host:             host,
+		Port:             port,
+		HandshakeVersion: handshake.Version,
+		ProtoVersion:     dist.Version,
+		TLS:              c.options.EnableRouteTLS,
 	}
 
 	return []gen.Route{route}, nil
@@ -153,7 +168,14 @@ func (c *client) Register(node gen.NodeRegistrar, routes gen.RegisterRoutes) (ge
 	var static gen.StaticRoutes
 
 	c.node = node
-	c.hidden = len(routes.Routes) == 0
+
+	if len(routes.Routes) == 0 {
+		// do nothing
+		return static, nil
+	}
+
+	c.hidden = true            // always hidden
+	c.route = routes.Routes[0] // use the first one only
 
 	if c.terminated == false {
 		return static, fmt.Errorf("already started")
@@ -194,10 +216,30 @@ func (c *client) Version() gen.Version {
 }
 
 func (c *client) tryRegister() (net.Conn, error) {
+	// use the name only
+	s := strings.Split(string(c.node.Name()), "@")
+	if len(s) != 2 {
+		return nil, fmt.Errorf("incorrect FQDN node name (example: node@localhost)")
+	}
+	if len(s[0]) < 1 {
+		return nil, fmt.Errorf("too short node name")
+	}
+	if len(s[1]) < 1 {
+		return nil, fmt.Errorf("too short host name")
+	}
+
 	if c.options.DisableServer == false {
 		c.server = tryStartServer(c.options.Port, c.node.Log())
 		if c.server != nil {
 			// local registrar is started
+			regNode := registeredNode{
+				port:   c.route.Port,
+				hidden: true, // dont use public
+				hi:     6,    // hi handshake version
+				lo:     5,    // lo handshake version
+			}
+
+			c.server.registerNode(s[0], regNode)
 			return nil, nil
 		}
 		c.node.Log().Trace("unable to start EPMD server, run as a client only")
@@ -212,7 +254,7 @@ func (c *client) tryRegister() (net.Conn, error) {
 		return nil, err
 	}
 
-	if err := c.sendAliveReq(conn); err != nil {
+	if err := c.sendAliveReq(conn, s[0], c.route.Port); err != nil {
 		conn.Close()
 		return nil, err
 	}
@@ -240,7 +282,7 @@ func (c *client) serve(conn net.Conn) {
 		}
 
 		// disconnected
-		c.node.Log().Warning("lost connection with the registrar")
+		c.node.Log().Warning("lost connection with the EPMD registrar")
 		c.conn = nil
 
 		// trying to reconnect
@@ -250,18 +292,18 @@ func (c *client) serve(conn net.Conn) {
 			}
 			conn, err := c.tryRegister()
 			if err != nil {
-				c.node.Log().Error("unable to register node on the EPMD: %s", err)
+				c.node.Log().Error("unable to register node on the EPMD registrar (will retry in a second): %s", err)
 				time.Sleep(time.Second)
 				continue
 			}
 
 			if conn == nil {
 				// use the local registrar server
-				c.node.Log().Info("registered node on the local EPMD")
+				c.node.Log().Info("registered node on the local EPMD registrar")
 				return
 			}
 			c.conn = conn
-			c.node.Log().Info("registered node on the EPMD")
+			c.node.Log().Info("registered node on the EPMD registrar")
 			break
 		}
 
@@ -300,11 +342,11 @@ func (c *client) readPortResp(conn net.Conn) (uint16, error) {
 	return port, nil
 }
 
-func (c *client) sendAliveReq(conn net.Conn) error {
-	buf := make([]byte, 2+14+len(c.node.Name()))
+func (c *client) sendAliveReq(conn net.Conn, name string, port uint16) error {
+	buf := make([]byte, 2+14+len(name))
 	binary.BigEndian.PutUint16(buf[0:2], uint16(len(buf)-2))
 	buf[2] = byte(epmdAliveReq)
-	binary.BigEndian.PutUint16(buf[3:5], c.options.Port)
+	binary.BigEndian.PutUint16(buf[3:5], port)
 	// http://erlang.org/doc/reference_manual/distributed.html (section 13.5)
 	// 77 — regular public node, 72 — hidden
 	// We use a regular one
@@ -320,11 +362,11 @@ func (c *client) sendAliveReq(conn net.Conn) error {
 	// LowestVersion
 	binary.BigEndian.PutUint16(buf[9:11], 5)
 	// length Node name
-	l := len(c.node.Name())
+	l := len(name)
 	binary.BigEndian.PutUint16(buf[11:13], uint16(l))
 	// Node name
 	offset := (13 + l)
-	copy(buf[13:offset], []byte(c.node.Name()))
+	copy(buf[13:offset], []byte(name))
 	// Send
 	if _, err := conn.Write(buf); err != nil {
 		return err

@@ -120,24 +120,16 @@ func (c *connection) SpawnRegister(register gen.Atom, name gen.Atom, options gen
 }
 
 func (c *connection) ApplicationStart(name gen.Atom, options gen.ApplicationOptions) error {
-	return c.applicationStart(name, 0, options)
+	return gen.ErrUnsupported
 }
 func (c *connection) ApplicationStartTemporary(name gen.Atom, options gen.ApplicationOptions) error {
-	return c.applicationStart(name, gen.ApplicationModeTemporary, options)
+	return gen.ErrUnsupported
 }
 func (c *connection) ApplicationStartTransient(name gen.Atom, options gen.ApplicationOptions) error {
-	return c.applicationStart(name, gen.ApplicationModeTransient, options)
+	return gen.ErrUnsupported
 }
 func (c *connection) ApplicationStartPermanent(name gen.Atom, options gen.ApplicationOptions) error {
-	return c.applicationStart(name, gen.ApplicationModePermanent, options)
-}
-
-func (c *connection) applicationStart(name gen.Atom, mode gen.ApplicationMode, options gen.ApplicationOptions) error {
-	if c.peer_flags.Enable && c.peer_flags.EnableRemoteApplicationStart == false {
-		return gen.ErrNotAllowed
-	}
-
-	return nil
+	return gen.ErrUnsupported
 }
 
 func (c *connection) Creation() int64 {

@@ -1,5 +1,9 @@
 package dist
 
+import (
+	"ergo.services/ergo/gen"
+)
+
 const (
 	protoName    string = "DIST" // Erlang DIST protocol
 	protoRelease string = "R6"   //
@@ -35,4 +39,12 @@ const (
 	distProtoALIAS_SEND_TT          = 34
 	distProtoUNLINK_ID              = 35
 	distProtoUNLINK_ID_ACK          = 36
+)
+
+var (
+	Version = gen.Version{
+		Name:    protoName,
+		Release: protoRelease,
+		License: gen.LicenseMIT,
+	}
 )
