@@ -23,8 +23,8 @@ type server struct {
 	port       uint16
 	socket     net.Listener
 	nodes      lib.Map[string, registeredNode]
-	log        gen.Log
 	terminated bool
+	log        gen.Log
 }
 
 func tryStartServer(port uint16, log gen.Log) *server {
