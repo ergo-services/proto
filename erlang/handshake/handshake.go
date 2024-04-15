@@ -88,11 +88,13 @@ func (h *handshake) readMessage(conn net.Conn, timeout time.Duration, chunk []by
 			mlen = int(binary.BigEndian.Uint32(chunk[:header]))
 		}
 
-		if len(chunk) < header+mlen {
-			expect = header + mlen
+		expect = header + mlen
+		if len(chunk) < expect {
 			continue
 		}
 
+		fmt.Println("HEADER", header, "EXPE", expect)
+		fmt.Println("GOT MESS", chunk)
 		message := chunk[header:expect]
 		tail := chunk[expect:]
 		return message, tail, nil

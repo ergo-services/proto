@@ -21,7 +21,7 @@ func (h *handshake) Accept(node gen.NodeHandshake, conn net.Conn, options gen.Ha
 
 	await := []byte{'n', 'N'}
 	for {
-		message, chunk, err = h.readMessage(conn, time.Second, chunk)
+		message, chunk, err = h.readMessage(conn, 5*time.Second, chunk)
 		if err != nil {
 			return result, err
 		}
