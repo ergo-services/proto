@@ -10,7 +10,54 @@ type ConnectionOptions struct {
 const (
 	handshakeName    string = "DIST Handshake"
 	handshakeRelease string = "R5/R6"
+
+	// distribution flags are defined here https://erlang.org/doc/apps/erts/erl_dist_protocol.html#distribution-flags
+	FlagPublished          Flag = 0x1
+	FlagAtomCache          Flag = 0x2
+	FlagExtendedReferences Flag = 0x4
+	FlagDistMonitor        Flag = 0x8
+	FlagFunTags            Flag = 0x10
+	FlagDistMonitorName    Flag = 0x20
+	FlagHiddenAtomCache    Flag = 0x40
+	FlagNewFunTags         Flag = 0x80
+	FlagExtendedPidsPorts  Flag = 0x100
+	FlagExportPtrTag       Flag = 0x200
+	FlagBitBinaries        Flag = 0x400
+	FlagNewFloats          Flag = 0x800
+	FlagUnicodeIO          Flag = 0x1000
+	FlagDistHdrAtomCache   Flag = 0x2000
+	FlagSmallAtomTags      Flag = 0x4000
+	//	FlagCompressed                   = 0x8000 // erlang uses this flag for the internal purposes
+	FlagUTF8Atoms         Flag = 0x10000
+	FlagMapTag            Flag = 0x20000
+	FlagBigCreation       Flag = 0x40000
+	FlagSendSender        Flag = 0x80000 // since OTP.21 enable replacement for SEND (distProtoSEND by distProtoSEND_SENDER)
+	FlagBigSeqTraceLabels      = 0x100000
+	FlagExitPayload       Flag = 0x400000 // since OTP.22 enable replacement for EXIT, EXIT2, MONITOR_P_EXIT
+	FlagFragments         Flag = 0x800000
+	FlagHandshake23       Flag = 0x1000000 // new connection setup handshake (version 6) introduced in OTP 23
+	FlagUnlinkID          Flag = 0x2000000
+	// for 64bit flags
+	FlagSpawn  Flag = 1 << 32
+	FlagNameMe Flag = 1 << 33
+	FlagV4NC   Flag = 1 << 34
+	FlagAlias  Flag = 1 << 35
 )
+
+type Flag uint64
+type flags Flag
+
+func (fs flags) toUint32() uint32 {
+	return uint32(fs)
+}
+
+func (fs flags) toUint64() uint64 {
+	return uint64(fs)
+}
+
+func (fs flags) isSet(f Flag) bool {
+	return (uint64(fs) & uint64(f)) != 0
+}
 
 var (
 	Version = gen.Version{
