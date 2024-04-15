@@ -1,6 +1,8 @@
 package handshake
 
 import (
+	"crypto/md5"
+	"crypto/tls"
 	"encoding/binary"
 	"fmt"
 	"math"
@@ -11,7 +13,7 @@ import (
 )
 
 type handshake struct {
-	flags []Flag
+	flags flags
 }
 
 type Options struct {
@@ -20,7 +22,10 @@ type Options struct {
 
 func Create(options Options) gen.NetworkHandshake {
 	handshake := &handshake{}
-	handshake.flags = append(handshake.flags, options.Flags...)
+	if len(options.Flags) == 0 {
+		options.Flags = DefaultFlags()
+	}
+	handshake.flags = toFlags(options.Flags...)
 	return handshake
 }
 
@@ -28,15 +33,33 @@ func (h *handshake) Version() gen.Version {
 	return Version
 }
 
-func (h *handshake) readMessage(conn net.Conn, timeout time.Duration, chunk []byte) ([]byte, error) {
+func (h *handshake) readMessage(conn net.Conn, timeout time.Duration, chunk []byte) ([]byte, []byte, error) {
 	var b [4096]byte
 
 	if timeout == 0 {
 		conn.SetReadDeadline(time.Time{})
 	}
 
-	expect := 6
+	// http://erlang.org/doc/apps/erts/erl_dist_protocol.html#distribution-handshake
+	// Every message in the handshake starts with a 16-bit big-endian integer,
+	// which contains the message length (not counting the two initial bytes).
+	// In Erlang this corresponds to option {packet, 2} in gen_tcp(3). Notice
+	// that after the handshake, the distribution switches to 4 byte packet headers.
+	expect := 2
+	// check if this connection is secured by TLS
+	_, tls := conn.(*tls.Conn)
+	if tls {
+		// TLS connection has 4 bytes packet length header
+		expect = 4
+	}
+
+	header := expect
+
 	for {
+		if expect > math.MaxUint16 {
+			return nil, nil, fmt.Errorf("too long DIST handshake message")
+		}
+
 		if len(chunk) < expect {
 			if timeout > 0 {
 				conn.SetReadDeadline(time.Now().Add(timeout))
@@ -44,24 +67,28 @@ func (h *handshake) readMessage(conn net.Conn, timeout time.Duration, chunk []by
 
 			n, err := conn.Read(b[:])
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 
 			chunk = append(chunk, b[:n]...)
 			continue
 		}
 
-		l := int(binary.BigEndian.Uint32(chunk[2:6]))
-		if l > math.MaxUint16 {
-			return nil, fmt.Errorf("too long handshake message")
+		mlen := 0
+		if header == 2 {
+			mlen = int(binary.BigEndian.Uint16(chunk[:header]))
+		} else {
+			mlen = int(binary.BigEndian.Uint32(chunk[:header]))
 		}
 
-		if len(chunk) < 6+l {
-			expect = 6 + l
+		if len(chunk) < header+mlen {
+			expect = header + mlen
 			continue
 		}
 
-		return chunk, nil
+		message := chunk[header:expect]
+		tail := chunk[expect:]
+		return message, tail, nil
 	}
 }
 
@@ -98,4 +125,10 @@ func toFlags(f ...Flag) flags {
 		fs |= uint64(v)
 	}
 	return flags(fs)
+}
+
+func genDigest(challenge uint32, cookie string) []byte {
+	s := fmt.Sprintf("%s%d", cookie, challenge)
+	digest := md5.Sum([]byte(s))
+	return digest[:]
 }
