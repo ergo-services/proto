@@ -19,7 +19,10 @@ func (h *handshake) Accept(node gen.NodeHandshake, conn net.Conn, options gen.Ha
 	var err error
 	var challenge uint32
 
+	result.HandshakeVersion = h.Version()
+	result.NodeFlags = options.Flags
 	await := []byte{'n', 'N'}
+
 	for {
 		message, chunk, err = h.readMessage(conn, 5*time.Second, chunk)
 		if err != nil {
@@ -64,7 +67,7 @@ func (h *handshake) Accept(node gen.NodeHandshake, conn net.Conn, options gen.Ha
 			// The new challenge message format (version 6)
 			// 8 (flags) + 4 (Creation) + 2 (NameLen) + Name
 			if len(message) < 16 {
-				return result, fmt.Errorf("malformed handshake ('N' length)")
+				return result, fmt.Errorf("malformed `dist handshake ('N' length)")
 			}
 			if err := readNameVersion6(message[1:], &result); err != nil {
 				return result, err
@@ -100,6 +103,7 @@ func (h *handshake) Accept(node gen.NodeHandshake, conn net.Conn, options gen.Ha
 			}
 
 			// handshaked
+			panic("HANDSHAKED")
 			return result, nil
 
 		case 's':
@@ -118,7 +122,7 @@ func sendStatus(conn net.Conn) error {
 		's', 'o', 'k',
 	}
 	_, tls := conn.(*tls.Conn)
-	if tls {
+	if tls == false {
 		buf = buf[2:]
 	}
 	if _, err := conn.Write(buf); err != nil {
@@ -244,7 +248,6 @@ func sendChallengeVersion6(conn net.Conn, f flags, node gen.NodeHandshake) (uint
 	challenge := rand.Uint32()
 	nodename := node.Name()
 	_, tls := conn.(*tls.Conn)
-
 	// 1 ('N') + 8 (flags) + 4 (chalange) + 4 (creation) + 2 (len(dh.nodename))
 	dataLength := 19 + len(nodename)
 	if tls {
