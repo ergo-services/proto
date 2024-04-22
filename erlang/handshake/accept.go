@@ -88,6 +88,13 @@ func (h *handshake) Accept(node gen.NodeHandshake, conn net.Conn, options gen.Ha
 			readComplement(message[1:], &result)
 			await = []byte{'r'}
 
+		case 's':
+			if string(message[1:3]) != "ok" {
+				return result, fmt.Errorf("DIST handshake status != ok")
+			}
+
+			await = []byte{'c', 'r'}
+
 		case 'r':
 			if len(message) < 19 {
 				return result, fmt.Errorf("malformed DIST handshake ('r' length)")
@@ -105,13 +112,6 @@ func (h *handshake) Accept(node gen.NodeHandshake, conn net.Conn, options gen.Ha
 			// handshaked
 			panic("HANDSHAKED")
 			return result, nil
-
-		case 's':
-			if string(message[1:3]) != "ok" {
-				return result, fmt.Errorf("DIST handshake status != ok")
-			}
-
-			await = []byte{'c', 'r'}
 		}
 	}
 }

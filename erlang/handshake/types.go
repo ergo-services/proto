@@ -59,6 +59,18 @@ func (fs flags) isSet(f Flag) bool {
 	return (uint64(fs) & uint64(f)) != 0
 }
 
+func (fs flags) enable(f Flag) flags {
+	nfs := uint64(fs)
+	nfs |= uint64(f)
+	return flags(nfs)
+}
+
+func (fs flags) disable(f Flag) flags {
+	nfs := uint64(fs)
+	nfs &= ^(uint64(f))
+	return flags(nfs)
+}
+
 var (
 	Version = gen.Version{
 		Name:    handshakeName,

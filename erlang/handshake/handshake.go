@@ -13,15 +13,19 @@ import (
 )
 
 type handshake struct {
-	flags flags
+	flags    flags
+	version5 bool
 }
 
 type Options struct {
-	Flags []Flag
+	Flags       []Flag
+	UseVersion5 bool // use DIST handhshake 5th version (by default is 6)
 }
 
 func Create(options Options) gen.NetworkHandshake {
-	handshake := &handshake{}
+	handshake := &handshake{
+		version5: options.UseVersion5,
+	}
 	if len(options.Flags) == 0 {
 		options.Flags = DefaultFlags()
 	}
