@@ -10,6 +10,9 @@ import (
 	"ergo.services/ergo/lib"
 )
 
+// ETF format
+// https://www.erlang.org/doc/apps/erts/erl_ext_dist
+
 var (
 	ErrStringTooLong = fmt.Errorf("Encoding error. String too long. Max allowed length is 65535")
 	ErrAtomTooLong   = fmt.Errorf("Encoding error. Atom too long. Max allowed UTF-8 chars is 255")

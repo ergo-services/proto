@@ -13,6 +13,9 @@ import (
 	"ergo.services/ergo/lib"
 )
 
+// DIST proto
+// https://www.erlang.org/doc/apps/erts/erl_dist_protocol#protocol-between-connected-nodes
+
 type connection struct {
 	id                  string
 	creation            int64 // for uptime

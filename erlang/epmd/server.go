@@ -11,6 +11,9 @@ import (
 	"ergo.services/ergo/lib"
 )
 
+// EPMD proto
+// https://www.erlang.org/doc/apps/erts/erl_dist_protocol#epmd-protocol
+
 type registeredNode struct {
 	conn   net.Conn
 	port   uint16

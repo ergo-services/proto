@@ -11,6 +11,9 @@ import (
 	"ergo.services/ergo/lib"
 )
 
+// ETF format
+// https://www.erlang.org/doc/apps/erts/erl_ext_dist
+
 var (
 	registered = registeredTypes{
 		typesEnc: make(map[Atom]*registerType),

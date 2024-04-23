@@ -10,6 +10,9 @@ import (
 	"ergo.services/ergo/lib"
 )
 
+// ETF format
+// https://www.erlang.org/doc/apps/erts/erl_ext_dist
+
 // linked list for decoding complex types like list/map/tuple
 type stackElement struct {
 	parent   *stackElement

@@ -4,6 +4,9 @@ import (
 	"sync"
 )
 
+// Atom cache
+// https://www.erlang.org/doc/apps/erts/erl_ext_dist#distribution_header
+
 const (
 	maxCacheItems = int16(2048)
 )

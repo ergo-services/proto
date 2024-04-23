@@ -15,6 +15,9 @@ import (
 	"ergo.services/proto/erlang/handshake"
 )
 
+// EPMD proto
+// https://www.erlang.org/doc/apps/erts/erl_dist_protocol#epmd-protocol
+
 type Options struct {
 	Port           uint16
 	EnableRouteTLS bool
