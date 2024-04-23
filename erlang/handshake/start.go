@@ -71,8 +71,56 @@ func (h *handshake) Start(node gen.NodeHandshake, conn net.Conn, options gen.Han
 			await = []byte{'s', 'a'}
 
 		case 'N':
+			// The new challenge message format (version 6)
+			// 8 (flags) + 4 (Creation) + 2 (NameLen) + Name
+			if len(message) < 16 {
+				return result, fmt.Errorf("malformed DIST handshake ('N' length)")
+			}
+
+			peerChallenge, err := readChallengeVersion6(message[1:], &result)
+			if err != nil {
+				return result, err
+			}
+
+			if h.version5 {
+				// upgrade handshake to version 6 by sending complement message
+				if err := sendComplement(conn, h.flags, node.Creation()); err != nil {
+					return result, err
+				}
+			}
+
+			if err := sendChallengeReply(conn, challenge, peerChallenge, options.Cookie); err != nil {
+				return result, err
+			}
+
+			// add 's' (send_status message) for the case if we got it after 'n' or 'N' message
+			await = []byte{'s', 'a'}
+
+		case 'a':
+			// 'a' + 16 (digest)
+			if len(message) < 17 {
+				return result, fmt.Errorf("malformed DIST handshake ('a' length of digest)")
+			}
+
+			// 'a' + 16 (digest)
+			digest := genDigest(challenge, options.Cookie)
+			if bytes.Compare(message[1:17], digest) != 0 {
+				return result, fmt.Errorf("malformed DIST handshake ('a' digest)")
+			}
+
+			panic("HANDSHAKED (start)")
+			// handshaked
+			return result, nil
 
 		case 's':
+			if string(message[1:3]) != "ok" {
+				return result, fmt.Errorf("DIST handshake status != ok")
+			}
+
+			await = []byte{'n', 'N'}
+
+		default:
+			return result, fmt.Errorf("malformed DIST handshake (unknown message '%c')", message[0])
 		}
 	}
 }
@@ -143,7 +191,6 @@ func sendNameVersion6(conn net.Conn, node gen.NodeHandshake, df flags) error {
 
 func readChallenge(b []byte, result *gen.HandshakeResult) (uint32, error) {
 	var challenge uint32
-	// var distHandshakeVersion int = 5
 
 	if len(b) < 15 {
 		return challenge, fmt.Errorf("malformed DIST handshake challenge")
@@ -160,6 +207,21 @@ func readChallenge(b []byte, result *gen.HandshakeResult) (uint32, error) {
 	result.Custom = flags
 	result.Peer = gen.Atom(b[10:])
 	challenge = binary.BigEndian.Uint32(b[6:10])
+	return challenge, nil
+}
+
+func readChallengeVersion6(b []byte, result *gen.HandshakeResult) (uint32, error) {
+	var challenge uint32
+	flags := flags(binary.BigEndian.Uint64(b[0:8]))
+	result.PeerFlags.Enable = true
+	result.PeerFlags.EnableRemoteSpawn = flags.isSet(FlagSpawn)
+	result.PeerCreation = int64(binary.BigEndian.Uint32(b[12:16]))
+
+	challenge = binary.BigEndian.Uint32(b[8:12])
+
+	lenName := int(binary.BigEndian.Uint16(b[16:18]))
+	result.Peer = gen.Atom(b[18 : 18+lenName])
+
 	return challenge, nil
 }
 
@@ -184,6 +246,33 @@ func sendChallengeReply(conn net.Conn, peerChallenge uint32, challenge uint32, c
 	buf[2] = 'r'
 	binary.BigEndian.PutUint32(buf[3:7], challenge) // uint32
 	copy(buf[7:], digest)
+	if _, err := conn.Write(buf); err != nil {
+		return err
+	}
+	return nil
+}
+
+func sendComplement(conn net.Conn, f flags, creation int64) error {
+	_, tls := conn.(*tls.Conn)
+	node_flags := uint32(f.toUint64() >> 32)
+	dataLength := 9 // 1 + 4 (flag high) + 4 (creation)
+	if tls {
+		buf := make([]byte, dataLength+4)
+		binary.BigEndian.PutUint32(buf[0:4], uint32(dataLength))
+		buf[4] = 'c'
+		binary.BigEndian.PutUint32(buf[5:9], node_flags)
+		binary.BigEndian.PutUint32(buf[9:13], uint32(creation))
+		if _, err := conn.Write(buf); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	buf := make([]byte, dataLength+2)
+	binary.BigEndian.PutUint16(buf[0:2], uint16(dataLength))
+	buf[2] = 'c'
+	binary.BigEndian.PutUint32(buf[3:7], node_flags)
+	binary.BigEndian.PutUint32(buf[7:11], uint32(creation))
 	if _, err := conn.Write(buf); err != nil {
 		return err
 	}
