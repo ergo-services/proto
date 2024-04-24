@@ -38,7 +38,7 @@ func Create(options Options) gen.NetworkHandshake {
 func (h *handshake) NetworkFlags() gen.NetworkFlags {
 	return gen.NetworkFlags{
 		Enable:            true,
-		EnableRemoteSpawn: h.flags.isSet(FlagSpawn),
+		EnableRemoteSpawn: h.flags.isEnabled(FlagSpawn),
 	}
 }
 

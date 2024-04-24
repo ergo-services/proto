@@ -194,7 +194,7 @@ func readChallenge(b []byte, result *gen.HandshakeResult) (uint32, error) {
 	}
 	flags := flags(binary.BigEndian.Uint32(b[2:6]))
 	result.PeerFlags.Enable = true
-	result.PeerFlags.EnableRemoteSpawn = flags.isSet(FlagSpawn)
+	result.PeerFlags.EnableRemoteSpawn = flags.isEnabled(FlagSpawn)
 
 	version := binary.BigEndian.Uint16(b[0:2])
 	if version != 5 {
@@ -211,7 +211,7 @@ func readChallengeVersion6(b []byte, result *gen.HandshakeResult) (uint32, error
 	var challenge uint32
 	flags := flags(binary.BigEndian.Uint64(b[0:8]))
 	result.PeerFlags.Enable = true
-	result.PeerFlags.EnableRemoteSpawn = flags.isSet(FlagSpawn)
+	result.PeerFlags.EnableRemoteSpawn = flags.isEnabled(FlagSpawn)
 	result.PeerCreation = int64(binary.BigEndian.Uint32(b[12:16]))
 
 	challenge = binary.BigEndian.Uint32(b[8:12])

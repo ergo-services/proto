@@ -55,7 +55,7 @@ func (fs flags) toUint64() uint64 {
 	return uint64(fs)
 }
 
-func (fs flags) isSet(f Flag) bool {
+func (fs flags) isEnabled(f Flag) bool {
 	return (uint64(fs) & uint64(f)) != 0
 }
 

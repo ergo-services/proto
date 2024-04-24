@@ -170,14 +170,14 @@ func sendChallengeAck(conn net.Conn, challenge uint32, cookie string) error {
 func readNameFlagsVersion(b []byte, result *gen.HandshakeResult) (int, error) {
 	extraFlags := flags(binary.BigEndian.Uint32(b[2:6]))
 	result.NodeFlags.Enable = true
-	result.NodeFlags.EnableRemoteSpawn = extraFlags.isSet(FlagSpawn)
+	result.NodeFlags.EnableRemoteSpawn = extraFlags.isEnabled(FlagSpawn)
 	result.Custom = extraFlags
 	version := int(binary.BigEndian.Uint16(b[0:2]))
 	if version != 5 {
 		return 0, fmt.Errorf("malformed version for DIST handshake: %d", version)
 	}
 
-	if extraFlags.isSet(FlagHandshake23) {
+	if extraFlags.isEnabled(FlagHandshake23) {
 		version = 6
 	}
 
@@ -196,7 +196,7 @@ func readNameVersion6(b []byte, result *gen.HandshakeResult) error {
 	extraFlags := flags(binary.BigEndian.Uint64(b[0:8]))
 	result.Custom = extraFlags
 	result.PeerFlags.Enable = true
-	result.PeerFlags.EnableRemoteSpawn = extraFlags.isSet(FlagSpawn)
+	result.PeerFlags.EnableRemoteSpawn = extraFlags.isEnabled(FlagSpawn)
 
 	// see my prev comment about name len
 	nameLen := int(binary.BigEndian.Uint16(b[12:14]))
