@@ -18,8 +18,10 @@ type handshake struct {
 }
 
 type Options struct {
-	Flags       []Flag
-	UseVersion5 bool // use DIST handhshake 5th version (by default is 6)
+	Flags []Flag
+	// UseVersion5 makes DIST handhshake to use 5th version (by default is 6)
+	// Must be enabled for making connection with Erlang 22 and earlier
+	UseVersion5 bool
 }
 
 func Create(options Options) gen.NetworkHandshake {

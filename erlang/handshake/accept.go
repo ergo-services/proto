@@ -110,7 +110,6 @@ func (h *handshake) Accept(node gen.NodeHandshake, conn net.Conn, options gen.Ha
 			}
 
 			// handshaked
-			panic("HANDSHAKED")
 			return result, nil
 		}
 	}

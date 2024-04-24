@@ -27,13 +27,12 @@ func (h *handshake) Start(node gen.NodeHandshake, conn net.Conn, options gen.Han
 	if options.Flags.Enable && options.Flags.EnableRemoteSpawn {
 		df = df.enable(FlagSpawn)
 	}
-	await := []byte{'n', 'N'}
+	await := []byte{'s', 'n', 'N'}
 
 	if h.version5 {
 		if err := sendName(conn, node, df); err != nil {
 			return result, err
 		}
-		await = []byte{'s', 'n', 'N'}
 	} else {
 		if err := sendNameVersion6(conn, node, df); err != nil {
 			return result, err
@@ -62,12 +61,10 @@ func (h *handshake) Start(node gen.NodeHandshake, conn net.Conn, options gen.Han
 				return result, err
 			}
 
-			if err := sendChallengeReply(conn, challenge, peerChallenge, options.Cookie); err != nil {
+			if err := sendChallengeReply(conn, peerChallenge, challenge, options.Cookie); err != nil {
 				return result, err
 			}
 
-			// add 's' status for the case if we got it after 'n' or 'N' message
-			// yes, sometime it happens
 			await = []byte{'s', 'a'}
 
 		case 'N':
@@ -89,7 +86,7 @@ func (h *handshake) Start(node gen.NodeHandshake, conn net.Conn, options gen.Han
 				}
 			}
 
-			if err := sendChallengeReply(conn, challenge, peerChallenge, options.Cookie); err != nil {
+			if err := sendChallengeReply(conn, peerChallenge, challenge, options.Cookie); err != nil {
 				return result, err
 			}
 
@@ -108,11 +105,11 @@ func (h *handshake) Start(node gen.NodeHandshake, conn net.Conn, options gen.Han
 				return result, fmt.Errorf("malformed DIST handshake ('a' digest)")
 			}
 
-			panic("HANDSHAKED (start)")
 			// handshaked
 			return result, nil
 
 		case 's':
+			fmt.Println("sss")
 			if string(message[1:3]) != "ok" {
 				return result, fmt.Errorf("DIST handshake status != ok")
 			}
@@ -160,7 +157,7 @@ func sendNameVersion6(conn net.Conn, node gen.NodeHandshake, df flags) error {
 	_, tls := conn.(*tls.Conn)
 	creation := uint32(node.Creation())
 	nodename := node.Name()
-	dataLength := 13 + len(nodename) // 1 + 8 (flags) + 4 (creation) + 2 (len nodename)
+	dataLength := 15 + len(nodename) // 1 + 8 (flags) + 4 (creation) + 2 (len nodename)
 
 	if tls {
 		buf := make([]byte, dataLength+4)
