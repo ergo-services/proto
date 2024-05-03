@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"ergo.services/ergo/gen"
+	"ergo.services/ergo/lib"
 )
 
 func (h *handshake) Accept(node gen.NodeHandshake, conn net.Conn, options gen.HandshakeOptions) (gen.HandshakeResult, error) {
@@ -19,6 +20,7 @@ func (h *handshake) Accept(node gen.NodeHandshake, conn net.Conn, options gen.Ha
 	var err error
 	var challenge uint32
 
+	result.ConnectionID = lib.RandomString(32)
 	result.HandshakeVersion = h.Version()
 	result.NodeFlags = options.Flags
 	await := []byte{'n', 'N'}

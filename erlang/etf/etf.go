@@ -2,13 +2,11 @@ package etf
 
 import (
 	"fmt"
-	"hash/crc32"
 	"reflect"
 	"strings"
 	"sync"
 
 	"ergo.services/ergo/gen"
-	"ergo.services/ergo/lib"
 )
 
 // ETF format
@@ -16,8 +14,8 @@ import (
 
 var (
 	registered = registeredTypes{
-		typesEnc: make(map[Atom]*registerType),
-		typesDec: make(map[Atom]*registerType),
+		typesEnc: make(map[gen.Atom]*registerType),
+		typesDec: make(map[gen.Atom]*registerType),
 	}
 )
 
@@ -69,13 +67,13 @@ const (
 
 type registeredTypes struct {
 	sync.RWMutex
-	typesEnc map[Atom]*registerType
-	typesDec map[Atom]*registerType
+	typesEnc map[gen.Atom]*registerType
+	typesDec map[gen.Atom]*registerType
 }
 type registerType struct {
 	rtype  reflect.Type
-	name   Atom
-	origin Atom
+	name   gen.Atom
+	origin gen.Atom
 	strict bool
 }
 
@@ -88,14 +86,8 @@ type Tuple []Term
 // List
 type List []Term
 
-// Alias
-type Alias Ref
-
 // ListImproper as a workaround for the Erlang's improper list [a|b]. Intended to be used to interact with Erlang.
 type ListImproper []Term
-
-// Atom
-type Atom string
 
 // Map
 type Map map[Term]Term
@@ -106,25 +98,11 @@ type String string
 // Charlist this type is intended to be used to interact with Erlang. Charlist value encodes as a list of int32 numbers in order to support Erlang string with UTF-8 symbols on an Erlang side (Erlang type: [...])
 type Charlist string
 
-// Pid
-type Pid struct {
-	Node     Atom
-	ID       uint64
-	Creation uint32
-}
-
 // Port
 type Port struct {
-	Node     Atom
+	Node     gen.Atom
 	ID       uint32
 	Creation uint32
-}
-
-// Ref
-type Ref struct {
-	Node     Atom
-	Creation uint32
-	ID       [5]uint32
 }
 
 // Marshaler interface implemented by types that can marshal themselves into valid ETF binary
@@ -157,24 +135,10 @@ type Unmarshaler interface {
 }
 
 // Function
-type Function struct {
-	Arity  byte
-	Unique [16]byte
-	Index  uint32
-	//	Free      uint32
-	Module    Atom
-	OldIndex  uint32
-	OldUnique uint32
-	Pid       Pid
-	FreeVars  []Term
-}
+type Function struct{}
 
 // Export
-type Export struct {
-	Module   Atom
-	Function Atom
-	Arity    int
-}
+type Export struct{}
 
 // Element
 func (m Map) Element(k Term) Term {
@@ -191,41 +155,9 @@ func (t Tuple) Element(i int) Term {
 	return t[i-1]
 }
 
-// String
-func (p Pid) String() string {
-	empty := Pid{}
-	if p == empty {
-		return "<0.0.0>"
-	}
-
-	n := uint32(0)
-	if p.Node != "" {
-		n = crc32.Checksum([]byte(p.Node), lib.CRC32Q)
-	}
-	return fmt.Sprintf("<%08X.%d.%d>", n, int32(p.ID>>32), int32(p.ID))
-}
-
-// String
-func (r Ref) String() string {
-	n := uint32(0)
-	if r.Node != "" {
-		n = crc32.Checksum([]byte(r.Node), lib.CRC32Q)
-	}
-	return fmt.Sprintf("Ref#<%08X.%d.%d.%d>", n, r.ID[0], r.ID[1], r.ID[2])
-}
-
-// String
-func (a Alias) String() string {
-	n := uint32(0)
-	if a.Node != "" {
-		n = crc32.Checksum([]byte(a.Node), lib.CRC32Q)
-	}
-	return fmt.Sprintf("Ref#<%08X.%d.%d.%d>", n, a.ID[0], a.ID[1], a.ID[2])
-}
-
 // ProplistElement
 type ProplistElement struct {
-	Name  Atom
+	Name  gen.Atom
 	Value Term
 }
 
@@ -233,7 +165,7 @@ type ProplistElement struct {
 func TermToString(t Term) (s string, ok bool) {
 	ok = true
 	switch x := t.(type) {
-	case Atom:
+	case gen.Atom:
 		s = string(x)
 	case string:
 		s = x
@@ -257,7 +189,7 @@ func TermToString(t Term) (s string, ok bool) {
 // where Name can be string or Atom and Value must be the same type as
 // it has the field of 'dest' struct with the equivalent name. Its also
 // accepts []ProplistElement as a 'term' value
-func TermProplistIntoStruct(term Term, dest interface{}) (err error) {
+func TermProplistIntoStruct(term Term, dest any) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("%v", r)
@@ -271,7 +203,7 @@ func TermProplistIntoStruct(term Term, dest interface{}) (err error) {
 // given 'dest' (could be a struct, map, slice or array). Its a pretty
 // expencive operation in terms of CPU usage so you shouldn't use it
 // on highload parts of your code. Use manual type casting instead.
-func TermIntoStruct(term Term, dest interface{}) (err error) {
+func TermIntoStruct(term Term, dest any) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("%v", r)
@@ -331,10 +263,13 @@ func termIntoStruct(term Term, dest reflect.Value) error {
 			return setMapStructField(s, dest)
 		case Tuple:
 			return setStructField(s, dest)
-		case Ref:
+		case gen.Ref:
 			dest.Set(reflect.ValueOf(s))
 			return nil
-		case Pid:
+		case gen.Alias:
+			dest.Set(reflect.ValueOf(s))
+			return nil
+		case gen.PID:
 			dest.Set(reflect.ValueOf(s))
 			return nil
 		}
@@ -438,7 +373,7 @@ func termIntoStruct(term Term, dest reflect.Value) error {
 		case string:
 			dest.SetString(v)
 			return nil
-		case Atom:
+		case gen.Atom:
 			dest.SetString(string(v))
 			return nil
 		}
@@ -663,7 +598,7 @@ func setMapMapField(term Map, dest reflect.Value) error {
 // Strict option defines whether the decoding process causes panic
 // if the decoding value doesn't fit the destination object.
 type RegisterTypeOptions struct {
-	Name   Atom
+	Name   gen.Atom
 	Strict bool
 }
 
@@ -671,10 +606,10 @@ type RegisterTypeOptions struct {
 // of the registered type, which can be used in the UnregisterType function
 // for unregistering this type. Supported types: struct, slice, array, map.
 // Returns an error if this type can not be registered.
-func RegisterType(t interface{}, options RegisterTypeOptions) (Atom, error) {
+func RegisterType(t any, options RegisterTypeOptions) (gen.Atom, error) {
 	switch t.(type) {
-	case Pid, Ref, Alias:
-		return "", fmt.Errorf("types Pid, Ref, Alias can not be registered")
+	case gen.PID, gen.Ref, gen.Alias:
+		return "", fmt.Errorf("types gen.PID, gen.Ref, gen.Alias can not be registered")
 	}
 	tt := reflect.TypeOf(t)
 	ttk := tt.Kind()
@@ -719,7 +654,7 @@ func RegisterType(t interface{}, options RegisterTypeOptions) (Atom, error) {
 		return name, fmt.Errorf("type is already registered as %q", r.name)
 	}
 
-	checkIsRegistered := func(name Atom, rt reflect.Kind) error {
+	checkIsRegistered := func(name gen.Atom, rt reflect.Kind) error {
 		switch rt {
 		case reflect.Struct, reflect.Array, reflect.Slice, reflect.Map:
 			// check if this type is registered
@@ -744,7 +679,7 @@ func RegisterType(t interface{}, options RegisterTypeOptions) (Atom, error) {
 			}
 
 			switch f.Interface().(type) {
-			case Pid, Ref, Alias:
+			case gen.PID, gen.Ref, gen.Alias:
 				// ignore this types
 				continue
 			}
@@ -779,7 +714,7 @@ func RegisterType(t interface{}, options RegisterTypeOptions) (Atom, error) {
 }
 
 // UnregisterType unregisters type with a given name.
-func UnregisterType(name Atom) error {
+func UnregisterType(name gen.Atom) error {
 	registered.Lock()
 	defer registered.Unlock()
 	r, found := registered.typesDec[name]
@@ -836,6 +771,6 @@ func convertCharlistToString(l List) (string, error) {
 	return string(runes), nil
 }
 
-func regTypeName(t reflect.Type) Atom {
-	return Atom("#" + t.PkgPath() + "/" + t.Name())
+func regTypeName(t reflect.Type) gen.Atom {
+	return gen.Atom("#" + t.PkgPath() + "/" + t.Name())
 }

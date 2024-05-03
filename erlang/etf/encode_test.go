@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"ergo.services/ergo/gen"
 	"ergo.services/ergo/lib"
 )
 
@@ -26,7 +27,7 @@ func TestEncodeBoolWithAtomCache(t *testing.T) {
 	b := lib.TakeBuffer()
 	defer lib.ReleaseBuffer(b)
 
-	senderAtomCache := make(map[Atom]CacheItem)
+	senderAtomCache := make(map[gen.Atom]CacheItem)
 	encodingAtomCache := TakeEncodingAtomCache()
 	atomCache := NewAtomCache()
 	ci := CacheItem{ID: 499, Encoded: true, Name: "false"}
@@ -217,7 +218,7 @@ func TestEncodeAtom(t *testing.T) {
 	expected := []byte{ettSmallAtomUTF8, 14, 69, 114, 103, 111, 32, 70, 114, 97, 109, 101, 119,
 		111, 114, 107}
 
-	err := Encode(Atom("Ergo Framework"), b, EncodeOptions{})
+	err := Encode(gen.Atom("Ergo Framework"), b, EncodeOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,7 +232,7 @@ func TestEncodeAtom(t *testing.T) {
 	b.Reset()
 
 	// longAtom with 255 utf-8 symbols 446 bytes
-	longAtom := Atom("你好世界ПриветМирHelloWorld你好世界ПриветМирHelloWorld你好世界ПриветМирHelloWorld你好世界ПриветМирHelloWorld你好世界ПриветМирHelloWorld你好世界ПриветМирHelloWorld你好世界ПриветМирHelloWorld你好世界ПриветМирHelloWorld你好世界ПриветМирHelloWorld你好世界ПриветМирHelloWorld你好世界ПриветМирHelloWorld你好")
+	longAtom := gen.Atom("你好世界ПриветМирHelloWorld你好世界ПриветМирHelloWorld你好世界ПриветМирHelloWorld你好世界ПриветМирHelloWorld你好世界ПриветМирHelloWorld你好世界ПриветМирHelloWorld你好世界ПриветМирHelloWorld你好世界ПриветМирHelloWorld你好世界ПриветМирHelloWorld你好世界ПриветМирHelloWorld你好世界ПриветМирHelloWorld你好")
 	err = Encode(longAtom, b, EncodeOptions{})
 
 	expected = []byte{ettAtomUTF8, 1, 190, 228, 189, 160, 229, 165, 189, 228, 184, 150, 231, 149, 140, 208, 159, 209, 128, 208, 184, 208, 178, 208, 181, 209, 130, 208, 156, 208, 184, 209, 128, 72, 101, 108, 108, 111, 87, 111, 114, 108, 100, 228, 189, 160, 229, 165, 189, 228, 184, 150, 231, 149, 140, 208, 159, 209, 128, 208, 184, 208, 178, 208, 181, 209, 130, 208, 156, 208, 184, 209, 128, 72, 101, 108, 108, 111, 87, 111, 114, 108, 100, 228, 189, 160, 229, 165, 189, 228, 184, 150, 231, 149, 140, 208, 159, 209, 128, 208, 184, 208, 178, 208, 181, 209, 130, 208, 156, 208, 184, 209, 128, 72, 101, 108, 108, 111, 87, 111, 114, 108, 100, 228, 189, 160, 229, 165, 189, 228, 184, 150, 231, 149, 140, 208, 159, 209, 128, 208, 184, 208, 178, 208, 181, 209, 130, 208, 156, 208, 184, 209, 128, 72, 101, 108, 108, 111, 87, 111, 114, 108, 100, 228, 189, 160, 229, 165, 189, 228, 184, 150, 231, 149, 140, 208, 159, 209, 128, 208, 184, 208, 178, 208, 181, 209, 130, 208, 156, 208, 184, 209, 128, 72, 101, 108, 108, 111, 87, 111, 114, 108, 100, 228, 189, 160, 229, 165, 189, 228, 184, 150, 231, 149, 140, 208, 159, 209, 128, 208, 184, 208, 178, 208, 181, 209, 130, 208, 156, 208, 184, 209, 128, 72, 101, 108, 108, 111, 87, 111, 114, 108, 100, 228, 189, 160, 229, 165, 189, 228, 184, 150, 231, 149, 140, 208, 159, 209, 128, 208, 184, 208, 178, 208, 181, 209, 130, 208, 156, 208, 184, 209, 128, 72, 101, 108, 108, 111, 87, 111, 114, 108, 100, 228, 189, 160, 229, 165, 189, 228, 184, 150, 231, 149, 140, 208, 159, 209, 128, 208, 184, 208, 178, 208, 181, 209, 130, 208, 156, 208, 184, 209, 128, 72, 101, 108, 108, 111, 87, 111, 114, 108, 100, 228, 189, 160, 229, 165, 189, 228, 184, 150, 231, 149, 140, 208, 159, 209, 128, 208, 184, 208, 178, 208, 181, 209, 130, 208, 156, 208, 184, 209, 128, 72, 101, 108, 108, 111, 87, 111, 114, 108, 100, 228, 189, 160, 229, 165, 189, 228, 184, 150, 231, 149, 140, 208, 159, 209, 128, 208, 184, 208, 178, 208, 181, 209, 130, 208, 156, 208, 184, 209, 128, 72, 101, 108, 108, 111, 87, 111, 114, 108, 100, 228, 189, 160, 229, 165, 189, 228, 184, 150, 231, 149, 140, 208, 159, 209, 128, 208, 184, 208, 178, 208, 181, 209, 130, 208, 156, 208, 184, 209, 128, 72, 101, 108, 108, 111, 87, 111, 114, 108, 100, 228, 189, 160, 229, 165, 189}
@@ -244,7 +245,7 @@ func TestEncodeAtom(t *testing.T) {
 	b.Reset()
 
 	// long Atom. longer 255 symbols. Should return ErrAtomTooLong
-	longAtom = Atom("Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework")
+	longAtom = gen.Atom("Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework Ergo Framework")
 	err = Encode(longAtom, b, EncodeOptions{})
 	if err != ErrAtomTooLong {
 		t.Fatal("incorrect value")
@@ -255,7 +256,7 @@ func TestEncodeAtomWithCache(t *testing.T) {
 	b := lib.TakeBuffer()
 	defer lib.ReleaseBuffer(b)
 
-	senderAtomCache := make(map[Atom]CacheItem)
+	senderAtomCache := make(map[gen.Atom]CacheItem)
 	encodingAtomCache := TakeEncodingAtomCache()
 
 	atomCache := NewAtomCache()
@@ -269,7 +270,7 @@ func TestEncodeAtomWithCache(t *testing.T) {
 		EncodingAtomCache: encodingAtomCache,
 	}
 
-	err := Encode(Atom("cached atom"), b, encodeOptions)
+	err := Encode(gen.Atom("cached atom"), b, encodeOptions)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -284,7 +285,7 @@ func TestEncodeAtomWithCache(t *testing.T) {
 
 	b.Reset()
 
-	err = Encode(Atom("not cached atom"), b, encodeOptions)
+	err = Encode(gen.Atom("not cached atom"), b, encodeOptions)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -319,7 +320,7 @@ func TestEncodeList(t *testing.T) {
 	defer lib.ReleaseBuffer(b)
 
 	expected := []byte{ettList, 0, 0, 0, 3, ettSmallAtomUTF8, 1, 97, ettSmallInteger, 2, ettSmallInteger, 3, ettNil}
-	term := List{Atom("a"), 2, 3}
+	term := List{gen.Atom("a"), 2, 3}
 	err := Encode(term, b, EncodeOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -336,7 +337,7 @@ func TestEncodeListImproper(t *testing.T) {
 	defer lib.ReleaseBuffer(b)
 
 	expected := []byte{ettList, 0, 0, 0, 2, ettSmallAtomUTF8, 1, 97, ettSmallInteger, 2, ettSmallInteger, 3}
-	term := ListImproper{Atom("a"), 2, 3}
+	term := ListImproper{gen.Atom("a"), 2, 3}
 	err := Encode(term, b, EncodeOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -370,7 +371,7 @@ func TestEncodeSlice(t *testing.T) {
 	b.Reset()
 
 	expected = []byte{108, 0, 0, 0, 3, 119, 1, 97, 119, 1, 98, 119, 1, 99, 106}
-	termAtoms := []Atom{Atom("a"), Atom("b"), Atom("c")}
+	termAtoms := []gen.Atom{gen.Atom("a"), gen.Atom("b"), gen.Atom("c")}
 	err = Encode(termAtoms, b, EncodeOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -389,7 +390,7 @@ func TestEncodeListNested(t *testing.T) {
 	expected := []byte{108, 0, 0, 0, 2, 119, 1, 97, 108, 0, 0, 0, 4, 119, 1, 98, 97, 2, 108,
 		0, 0, 0, 2, 119, 1, 99, 97, 3, 106, 97, 4, 106, 106}
 
-	term := List{Atom("a"), List{Atom("b"), 2, List{Atom("c"), 3}, 4}}
+	term := List{gen.Atom("a"), List{gen.Atom("b"), 2, List{gen.Atom("c"), 3}, 4}}
 	err := Encode(term, b, EncodeOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -408,7 +409,7 @@ func TestEncodeTupleNested(t *testing.T) {
 	expected := []byte{104, 2, 119, 1, 97, 104, 4, 119, 1, 98, 97, 2, 104, 2, 119, 1, 99,
 		97, 3, 97, 4}
 
-	term := Tuple{Atom("a"), Tuple{Atom("b"), 2, Tuple{Atom("c"), 3}, 4}}
+	term := Tuple{gen.Atom("a"), Tuple{gen.Atom("b"), 2, Tuple{gen.Atom("c"), 3}, 4}}
 	err := Encode(term, b, EncodeOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -426,7 +427,7 @@ func TestEncodeTuple(t *testing.T) {
 	defer lib.ReleaseBuffer(b)
 
 	expected := []byte{ettSmallTuple, 3, ettSmallAtomUTF8, 1, 97, ettSmallInteger, 2, ettSmallInteger, 3}
-	term := Tuple{Atom("a"), 2, 3}
+	term := Tuple{gen.Atom("a"), 2, 3}
 	err := Encode(term, b, EncodeOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -451,8 +452,8 @@ func TestEncodeMap(t *testing.T) {
 		108, 108, 111, 32, 119, 111, 114, 108, 100, 119, 4, 107, 101, 121, 49, 98, 0, 0,
 		48, 57}
 	term := Map{
-		Atom("key1"): 12345,
-		Atom("key2"): "hello world",
+		gen.Atom("key1"): 12345,
+		gen.Atom("key2"): "hello world",
 	}
 
 	err := Encode(term, b, EncodeOptions{})
@@ -478,9 +479,9 @@ func TestEncodeGoMap(t *testing.T) {
 	expected1 := []byte{116, 0, 0, 0, 2, 119, 4, 107, 101, 121, 50, 107, 0, 11, 104, 101,
 		108, 108, 111, 32, 119, 111, 114, 108, 100, 119, 4, 107, 101, 121, 49, 98, 0, 0,
 		48, 57}
-	term := map[Atom]interface{}{
-		Atom("key1"): 12345,
-		Atom("key2"): "hello world",
+	term := map[gen.Atom]interface{}{
+		gen.Atom("key1"): 12345,
+		gen.Atom("key2"): "hello world",
 	}
 
 	err := Encode(term, b, EncodeOptions{})
@@ -669,7 +670,7 @@ func TestEncodePid(t *testing.T) {
 	// FlagBigPidRef disabled. max value for ID (15 bits), serial 0
 	expected := []byte{ettPid, 119, 18, 101, 114, 108, 45, 100, 101, 109, 111, 64, 49, 50,
 		55, 46, 48, 46, 48, 46, 49, 0, 0, 127, 255, 0, 0, 0, 0, 2}
-	term := Pid{Node: "erl-demo@127.0.0.1", ID: 32767, Creation: 2}
+	term := gen.PID{Node: "erl-demo@127.0.0.1", ID: 32767, Creation: 2}
 
 	err := Encode(term, b, EncodeOptions{})
 	if err != nil {
@@ -686,7 +687,7 @@ func TestEncodePid(t *testing.T) {
 	b.Reset()
 	expected = []byte{ettPid, 119, 18, 101, 114, 108, 45, 100, 101, 109, 111, 64, 49, 50,
 		55, 46, 48, 46, 48, 46, 49, 0, 0, 0, 0, 0, 0, 0, 1, 2}
-	term = Pid{Node: "erl-demo@127.0.0.1", ID: 32768, Creation: 2}
+	term = gen.PID{Node: "erl-demo@127.0.0.1", ID: 32768, Creation: 2}
 
 	err = Encode(term, b, EncodeOptions{})
 	if err != nil {
@@ -703,7 +704,7 @@ func TestEncodePid(t *testing.T) {
 	b.Reset()
 	expected = []byte{ettNewPid, 119, 18, 101, 114, 108, 45, 100, 101, 109, 111, 64, 49, 50,
 		55, 46, 48, 46, 48, 46, 49, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 2}
-	term = Pid{Node: "erl-demo@127.0.0.1", ID: 4294967295, Creation: 2}
+	term = gen.PID{Node: "erl-demo@127.0.0.1", ID: 4294967295, Creation: 2}
 
 	options := EncodeOptions{
 		FlagBigCreation: true,
@@ -724,7 +725,7 @@ func TestEncodePid(t *testing.T) {
 	b.Reset()
 	expected = []byte{ettNewPid, 119, 18, 101, 114, 108, 45, 100, 101, 109, 111, 64, 49, 50,
 		55, 46, 48, 46, 48, 46, 49, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 2}
-	term = Pid{Node: "erl-demo@127.0.0.1", ID: 18446744073709551615, Creation: 2}
+	term = gen.PID{Node: "erl-demo@127.0.0.1", ID: 18446744073709551615, Creation: 2}
 
 	options = EncodeOptions{
 		FlagBigCreation: true,
@@ -747,9 +748,9 @@ func TestEncodePidWithAtomCache(t *testing.T) {
 	defer lib.ReleaseBuffer(b)
 
 	expected := []byte{103, 82, 0, 0, 0, 1, 56, 0, 0, 0, 0, 2}
-	term := Pid{Node: "erl-demo@127.0.0.1", ID: 312, Creation: 2}
+	term := gen.PID{Node: "erl-demo@127.0.0.1", ID: 312, Creation: 2}
 
-	senderAtomCache := make(map[Atom]CacheItem)
+	senderAtomCache := make(map[gen.Atom]CacheItem)
 	encodingAtomCache := TakeEncodingAtomCache()
 	atomCache := NewAtomCache()
 
@@ -786,12 +787,12 @@ func TestEncodeRef(t *testing.T) {
 		49, 50, 55, 46, 48, 46, 48, 46, 49, 3, 0, 1, 30, 228, 183, 192, 0, 1, 141,
 		122, 203, 35}
 
-	term := Ref{
-		Node: Atom("erl-demo@127.0.0.1"),
+	term := gen.Ref{
+		Node: gen.Atom("erl-demo@127.0.0.1"),
 		// Creation must be encoded as 3
 		// Only one byte long and only two bits are significant, the rest must be 0.
 		Creation: 7,
-		ID:       [5]uint32{73444, 3082813441, 2373634851},
+		ID:       [3]uint32{73444, 3082813441, 2373634851},
 	}
 
 	err := Encode(term, b, EncodeOptions{})
@@ -811,10 +812,11 @@ func TestEncodeRef(t *testing.T) {
 		49, 50, 55, 46, 48, 46, 48, 46, 49, 0, 0, 0, 8, 0, 1, 30, 228, 183, 192, 0, 1, 141,
 		122, 203, 35}
 
-	term = Ref{
-		Node:     Atom("erl-demo@127.0.0.1"),
+	term = gen.Ref{
+		Node:     gen.Atom("erl-demo@127.0.0.1"),
 		Creation: 8,
-		ID:       [5]uint32{73444, 3082813441, 2373634851, 1, 2},
+		ID:       [3]uint32{73444, 3082813441, 2373634851},
+		// ID:       [3]uint32{73444, 3082813441, 2373634851, 1, 2},
 	}
 
 	options := EncodeOptions{
@@ -842,7 +844,7 @@ func TestEncodeRef(t *testing.T) {
 	//	122, 203, 35, 0, 0, 0, 1, 0, 0, 0, 2}
 
 	//term = Ref{
-	//	Node:     Atom("erl-demo@127.0.0.1"),
+	//	Node:     gen.Atom("erl-demo@127.0.0.1"),
 	//	Creation: 8,
 	//	ID:       [5]uint32{73444, 3082813441, 2373634851, 1, 2},
 	//}
@@ -874,12 +876,12 @@ func TestEncodeTupleRefPid(t *testing.T) {
 		2}
 
 	term := Tuple{
-		Ref{
-			Node:     Atom("erl-demo@127.0.0.1"),
+		gen.Ref{
+			Node:     gen.Atom("erl-demo@127.0.0.1"),
 			Creation: 2,
-			ID:       [5]uint32{0x11f1c, 0xb7c00001, 0x8d7acb23}},
-		Pid{
-			Node:     Atom("erl-demo@127.0.0.1"),
+			ID:       [3]uint32{0x11f1c, 0xb7c00001, 0x8d7acb23}},
+		gen.PID{
+			Node:     gen.Atom("erl-demo@127.0.0.1"),
 			ID:       312,
 			Creation: 2}}
 
@@ -1037,7 +1039,7 @@ func BenchmarkEncodeBoolWithAtomCache(b *testing.B) {
 	buf := lib.TakeBuffer()
 	defer lib.ReleaseBuffer(buf)
 
-	senderAtomCache := make(map[Atom]CacheItem)
+	senderAtomCache := make(map[gen.Atom]CacheItem)
 	encodingAtomCache := TakeEncodingAtomCache()
 	atomCache := NewAtomCache()
 
@@ -1119,7 +1121,7 @@ func BenchmarkEncodeAtom(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		err := Encode(Atom("Ergo Framework"), buf, EncodeOptions{})
+		err := Encode(gen.Atom("Ergo Framework"), buf, EncodeOptions{})
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -1130,7 +1132,7 @@ func BenchmarkEncodeAtomWithCache(b *testing.B) {
 	buf := lib.TakeBuffer()
 	defer lib.ReleaseBuffer(buf)
 
-	senderAtomCache := make(map[Atom]CacheItem)
+	senderAtomCache := make(map[gen.Atom]CacheItem)
 	encodingAtomCache := TakeEncodingAtomCache()
 	atomCache := NewAtomCache()
 
@@ -1145,7 +1147,7 @@ func BenchmarkEncodeAtomWithCache(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		err := Encode(Atom("cached atom"), buf, encodeOptions)
+		err := Encode(gen.Atom("cached atom"), buf, encodeOptions)
 		buf.Reset()
 		if err != nil {
 			b.Fatal(err)
@@ -1172,7 +1174,7 @@ func BenchmarkEncodeList(b *testing.B) {
 	buf := lib.TakeBuffer()
 	defer lib.ReleaseBuffer(buf)
 
-	term := List{Atom("a"), 2, 3}
+	term := List{gen.Atom("a"), 2, 3}
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -1189,7 +1191,7 @@ func BenchmarkEncodeListNested(b *testing.B) {
 	buf := lib.TakeBuffer()
 	defer lib.ReleaseBuffer(buf)
 
-	term := List{Atom("a"), List{Atom("b"), 2, List{Atom("c"), 3}, 4}}
+	term := List{gen.Atom("a"), List{gen.Atom("b"), 2, List{gen.Atom("c"), 3}, 4}}
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -1206,7 +1208,7 @@ func BenchmarkEncodeTuple(b *testing.B) {
 	buf := lib.TakeBuffer()
 	defer lib.ReleaseBuffer(buf)
 
-	term := Tuple{Atom("a"), 2, 3}
+	term := Tuple{gen.Atom("a"), 2, 3}
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -1223,7 +1225,7 @@ func BenchmarkEncodeTupleNested(b *testing.B) {
 	buf := lib.TakeBuffer()
 	defer lib.ReleaseBuffer(buf)
 
-	term := Tuple{Atom("a"), Tuple{Atom("b"), 2, Tuple{Atom("c"), 3}, 4}}
+	term := Tuple{gen.Atom("a"), Tuple{gen.Atom("b"), 2, Tuple{gen.Atom("c"), 3}, 4}}
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -1273,8 +1275,8 @@ func BenchmarkEncodeMap(b *testing.B) {
 	defer lib.ReleaseBuffer(buf)
 
 	term := Map{
-		Atom("key1"): 12345,
-		Atom("key2"): "hello world",
+		gen.Atom("key1"): 12345,
+		gen.Atom("key2"): "hello world",
 	}
 	b.ResetTimer()
 
@@ -1291,9 +1293,9 @@ func BenchmarkEncodeGoMap(b *testing.B) {
 	buf := lib.TakeBuffer()
 	defer lib.ReleaseBuffer(buf)
 
-	term := map[Atom]interface{}{
-		Atom("key1"): 12345,
-		Atom("key2"): "hello world",
+	term := map[gen.Atom]interface{}{
+		gen.Atom("key1"): 12345,
+		gen.Atom("key2"): "hello world",
 	}
 	b.ResetTimer()
 
@@ -1332,7 +1334,7 @@ func BenchmarkEncodePid(b *testing.B) {
 	buf := lib.TakeBuffer()
 	defer lib.ReleaseBuffer(buf)
 
-	term := Pid{Node: "erl-demo@127.0.0.1", ID: 312, Creation: 2}
+	term := gen.PID{Node: "erl-demo@127.0.0.1", ID: 312, Creation: 2}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -1348,9 +1350,9 @@ func BenchmarkEncodePidWithAtomCache(b *testing.B) {
 	buf := lib.TakeBuffer()
 	defer lib.ReleaseBuffer(buf)
 
-	term := Pid{Node: "erl-demo@127.0.0.1", ID: 312, Creation: 2}
+	term := gen.PID{Node: "erl-demo@127.0.0.1", ID: 312, Creation: 2}
 
-	senderAtomCache := make(map[Atom]CacheItem)
+	senderAtomCache := make(map[gen.Atom]CacheItem)
 	encodingAtomCache := TakeEncodingAtomCache()
 	atomCache := NewAtomCache()
 
@@ -1377,10 +1379,10 @@ func BenchmarkEncodeRef(b *testing.B) {
 	buf := lib.TakeBuffer()
 	defer lib.ReleaseBuffer(buf)
 
-	term := Ref{
-		Node:     Atom("erl-demo@127.0.0.1"),
+	term := gen.Ref{
+		Node:     gen.Atom("erl-demo@127.0.0.1"),
 		Creation: 2,
-		ID:       [5]uint32{73444, 3082813441, 2373634851},
+		ID:       [3]uint32{73444, 3082813441, 2373634851},
 	}
 
 	for i := 0; i < b.N; i++ {
@@ -1396,13 +1398,13 @@ func BenchmarkEncodeRefWithAtomCache(b *testing.B) {
 	buf := lib.TakeBuffer()
 	defer lib.ReleaseBuffer(buf)
 
-	term := Ref{
-		Node:     Atom("erl-demo@127.0.0.1"),
+	term := gen.Ref{
+		Node:     gen.Atom("erl-demo@127.0.0.1"),
 		Creation: 2,
-		ID:       [5]uint32{73444, 3082813441, 2373634851},
+		ID:       [3]uint32{73444, 3082813441, 2373634851},
 	}
 
-	senderAtomCache := make(map[Atom]CacheItem)
+	senderAtomCache := make(map[gen.Atom]CacheItem)
 	encodingAtomCache := TakeEncodingAtomCache()
 	atomCache := NewAtomCache()
 
@@ -1430,12 +1432,12 @@ func BenchmarkEncodeTupleRefPid(b *testing.B) {
 	defer lib.ReleaseBuffer(buf)
 
 	term := Tuple{
-		Ref{
-			Node:     Atom("erl-demo@127.0.0.1"),
+		gen.Ref{
+			Node:     gen.Atom("erl-demo@127.0.0.1"),
 			Creation: 2,
-			ID:       [5]uint32{0x11f1c, 0xb7c00001, 0x8d7acb23}},
-		Pid{
-			Node:     Atom("erl-demo@127.0.0.1"),
+			ID:       [3]uint32{0x11f1c, 0xb7c00001, 0x8d7acb23}},
+		gen.PID{
+			Node:     gen.Atom("erl-demo@127.0.0.1"),
 			ID:       312,
 			Creation: 2}}
 
@@ -1454,16 +1456,16 @@ func BenchmarkEncodeTupleRefPidWithAtomCache(b *testing.B) {
 	defer lib.ReleaseBuffer(buf)
 
 	term := Tuple{
-		Ref{
-			Node:     Atom("erl-demo@127.0.0.1"),
+		gen.Ref{
+			Node:     gen.Atom("erl-demo@127.0.0.1"),
 			Creation: 2,
-			ID:       [5]uint32{0x11f1c, 0xb7c00001, 0x8d7acb23}},
-		Pid{
-			Node:     Atom("erl-demo@127.0.0.1"),
+			ID:       [3]uint32{0x11f1c, 0xb7c00001, 0x8d7acb23}},
+		gen.PID{
+			Node:     gen.Atom("erl-demo@127.0.0.1"),
 			ID:       312,
 			Creation: 2}}
 
-	senderAtomCache := make(map[Atom]CacheItem)
+	senderAtomCache := make(map[gen.Atom]CacheItem)
 	encodingAtomCache := TakeEncodingAtomCache()
 	defer ReleaseEncodingAtomCache(encodingAtomCache)
 	atomCache := NewAtomCache()

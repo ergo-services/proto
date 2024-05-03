@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"reflect"
 
+	"ergo.services/ergo/gen"
 	"ergo.services/ergo/lib"
 )
 
@@ -31,7 +32,7 @@ var (
 // EncodeOptions
 type EncodeOptions struct {
 	AtomCache         *AtomCacheOut
-	SenderAtomCache   map[Atom]CacheItem
+	SenderAtomCache   map[gen.Atom]CacheItem
 	EncodingAtomCache *EncodingAtomCache
 	AtomMapping       *AtomMapping
 
@@ -107,7 +108,7 @@ func Encode(term Term, b *lib.Buffer, options EncodeOptions) (retErr error) {
 				term = stack.term.(Tuple)[stack.i]
 
 			case ettPid:
-				p := stack.term.(Pid)
+				p := stack.term.(gen.PID)
 				if stack.i == 0 {
 					term = p.Node
 					break
@@ -144,7 +145,7 @@ func Encode(term Term, b *lib.Buffer, options EncodeOptions) (retErr error) {
 				continue
 
 			case ettNewPid:
-				p := stack.term.(Pid)
+				p := stack.term.(gen.PID)
 				if stack.i == 0 {
 					term = p.Node
 					break
@@ -166,15 +167,15 @@ func Encode(term Term, b *lib.Buffer, options EncodeOptions) (retErr error) {
 					binary.BigEndian.PutUint32(buf[4:8], (uint32(p.ID>>32))&8191)
 				}
 				// Creation
-				binary.BigEndian.PutUint32(buf[8:12], p.Creation)
+				binary.BigEndian.PutUint32(buf[8:12], uint32(p.Creation))
 
 				stack.i++
 				continue
 
 			case ettNewRef:
-				r := stack.term.(Ref)
+				r := stack.term.(gen.Ref)
 				if stack.i == 0 {
-					term = stack.term.(Ref).Node
+					term = stack.term.(gen.Ref).Node
 					break
 				}
 
@@ -199,9 +200,9 @@ func Encode(term Term, b *lib.Buffer, options EncodeOptions) (retErr error) {
 				continue
 
 			case ettNewerRef:
-				r := stack.term.(Ref)
+				r := stack.term.(gen.Ref)
 				if stack.i == 0 {
-					term = stack.term.(Ref).Node
+					term = stack.term.(gen.Ref).Node
 					break
 				}
 
@@ -212,7 +213,7 @@ func Encode(term Term, b *lib.Buffer, options EncodeOptions) (retErr error) {
 				//	lenID = 5
 				//}
 				buf := b.Extend(4 + lenID*4)
-				binary.BigEndian.PutUint32(buf[0:4], r.Creation)
+				binary.BigEndian.PutUint32(buf[0:4], uint32(r.Creation))
 				buf = buf[4:]
 				for i := 0; i < lenID; i++ {
 					binary.BigEndian.PutUint32(buf[:4], r.ID[i])
@@ -292,7 +293,7 @@ func Encode(term Term, b *lib.Buffer, options EncodeOptions) (retErr error) {
 				}
 
 				if stack.i&0x01 != 0x01 { // a key (field name)
-					term = Atom(fieldName)
+					term = gen.Atom(fieldName)
 					break
 				}
 
@@ -316,9 +317,9 @@ func Encode(term Term, b *lib.Buffer, options EncodeOptions) (retErr error) {
 		case bool:
 
 			if cacheEnabled && cacheIndex < 255 {
-				value := Atom("false")
+				value := gen.Atom("false")
 				if t {
-					value = Atom("true")
+					value = gen.Atom("true")
 				}
 
 				// looking for CacheItem
@@ -554,7 +555,7 @@ func Encode(term Term, b *lib.Buffer, options EncodeOptions) (retErr error) {
 			term = []byte(t)
 			goto recasting
 
-		case Atom:
+		case gen.Atom:
 			// As from ERTS 9.0 (OTP 20), atoms may contain any Unicode
 			// characters and are always encoded using the UTF-8 external
 			// formats ATOM_UTF8_EXT or SMALL_ATOM_UTF8_EXT.
@@ -634,7 +635,7 @@ func Encode(term Term, b *lib.Buffer, options EncodeOptions) (retErr error) {
 				children: lenTuple,
 			}
 
-		case Pid:
+		case gen.PID:
 			child = &stackElement{
 				parent:   stack,
 				term:     t,
@@ -648,11 +649,11 @@ func Encode(term Term, b *lib.Buffer, options EncodeOptions) (retErr error) {
 				b.AppendByte(ettPid)
 			}
 
-		case Alias:
-			term = Ref(t)
+		case gen.Alias:
+			term = gen.Ref(t)
 			goto recasting
 
-		case Ref:
+		case gen.Ref:
 			buf := b.Extend(3)
 
 			child = &stackElement{

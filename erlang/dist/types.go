@@ -1,6 +1,8 @@
 package dist
 
 import (
+	"time"
+
 	"ergo.services/ergo/gen"
 )
 
@@ -39,6 +41,14 @@ const (
 	distProtoALIAS_SEND_TT          = 34
 	distProtoUNLINK_ID              = 35
 	distProtoUNLINK_ID_ACK          = 36
+
+	keepAlivePeriod = 15 * time.Second
+
+	// http://erlang.org/doc/apps/erts/erl_ext_dist.html#distribution_header
+	protoDist          = 131
+	protoDistMessage   = 68
+	protoDistFragment1 = 69
+	protoDistFragmentN = 70
 )
 
 var (

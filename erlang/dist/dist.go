@@ -1,10 +1,12 @@
 package dist
 
 import (
+	"fmt"
 	"time"
 
 	"ergo.services/ergo/gen"
 	"ergo.services/ergo/lib"
+	"ergo.services/proto/erlang/etf"
 )
 
 // later  "ergo.services/proto/erlang/etf"
@@ -51,6 +53,9 @@ func (d *dist) NewConnection(core gen.Core, result gen.HandshakeResult, log gen.
 		peer_maxmessagesize: result.PeerMaxMessageSize,
 
 		// requests: make(map[gen.Ref]chan MessageResult),
+
+		cache:   etf.NewAtomCache(),
+		mapping: etf.NewAtomMapping(),
 	}
 
 	// init recv queues. create 4 recv queues per connection
@@ -63,7 +68,10 @@ func (d *dist) NewConnection(core gen.Core, result gen.HandshakeResult, log gen.
 }
 
 func (d *dist) Serve(c gen.Connection, dial gen.NetworkDial) error {
-	conn := c.(*connection)
+	conn, valid := c.(*connection)
+	if valid == false {
+		return fmt.Errorf("internal DIST error: unsupported connection type")
+	}
 	conn.wait()
 	return nil
 }

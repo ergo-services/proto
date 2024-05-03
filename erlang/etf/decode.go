@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"reflect"
 
+	"ergo.services/ergo/gen"
 	"ergo.services/ergo/lib"
 )
 
@@ -81,7 +82,7 @@ type DecodeOptions struct {
 // see comments within this function
 
 // Decode
-func Decode(packet []byte, cache []Atom, options DecodeOptions) (retTerm Term, retByte []byte, retErr error) {
+func Decode(packet []byte, cache []gen.Atom, options DecodeOptions) (retTerm Term, retByte []byte, retErr error) {
 	var term Term
 	var stack *stackElement
 	var child *stackElement
@@ -131,7 +132,7 @@ func Decode(packet []byte, cache []Atom, options DecodeOptions) (retTerm Term, r
 				return nil, nil, errMalformedAtomUTF8
 			}
 
-			atom := Atom(packet[2 : n+2])
+			atom := gen.Atom(packet[2 : n+2])
 			if len([]rune(atom)) > 255 {
 				return nil, nil, errMalformedAtomUTF8
 			}
@@ -158,13 +159,13 @@ func Decode(packet []byte, cache []Atom, options DecodeOptions) (retTerm Term, r
 				return nil, nil, errMalformedSmallAtomUTF8
 			}
 
-			switch Atom(packet[1 : n+1]) {
+			switch gen.Atom(packet[1 : n+1]) {
 			case "true":
 				term = true
 			case "false":
 				term = false
 			default:
-				atom := Atom(packet[1 : n+1])
+				atom := gen.Atom(packet[1 : n+1])
 				// replace atom value if we have mapped value for it
 				if options.AtomMapping != nil {
 					options.AtomMapping.MutexIn.RLock()
@@ -653,17 +654,10 @@ func Decode(packet []byte, cache []Atom, options DecodeOptions) (retTerm Term, r
 			copy(unique[:], packet[5:21])
 			l := binary.BigEndian.Uint32(packet[25:29])
 
-			fun := Function{
-				Arity:    packet[4],
-				Unique:   unique,
-				Index:    binary.BigEndian.Uint32(packet[21:25]),
-				FreeVars: make([]Term, l),
-			}
-
 			child = &stackElement{
 				parent:   stack,
 				termType: t,
-				term:     fun,
+				term:     Function{},
 				children: 4 + int(l),
 			}
 			packet = packet[29:]
@@ -784,7 +778,7 @@ func Decode(packet []byte, cache []Atom, options DecodeOptions) (retTerm Term, r
 			case ettList:
 				if stack.i == 0 {
 					// if the first value is atom, check for the registered type
-					if typeName, isAtom := term.(Atom); isAtom == true {
+					if typeName, isAtom := term.(gen.Atom); isAtom == true {
 						registered.RLock()
 						r, found := registered.typesDec[typeName]
 						registered.RUnlock()
@@ -839,7 +833,7 @@ func Decode(packet []byte, cache []Atom, options DecodeOptions) (retTerm Term, r
 
 				if stack.i == 0 {
 					// if the first value is atom, check for the registered type
-					if typeName, isAtom := term.(Atom); isAtom == true {
+					if typeName, isAtom := term.(gen.Atom); isAtom == true {
 						registered.RLock()
 						r, found := registered.typesDec[typeName]
 						registered.RUnlock()
@@ -870,7 +864,7 @@ func Decode(packet []byte, cache []Atom, options DecodeOptions) (retTerm Term, r
 			case ettMap:
 				if stack.i == 0 {
 					// if the first key is atom, check for the registered type
-					if typeName, isAtom := term.(Atom); isAtom == true {
+					if typeName, isAtom := term.(gen.Atom); isAtom == true {
 						registered.RLock()
 						r, found := registered.typesDec[typeName]
 						registered.RUnlock()
@@ -919,7 +913,8 @@ func Decode(packet []byte, cache []Atom, options DecodeOptions) (retTerm Term, r
 					// and this connection is dropping.
 					switch stack.tmp.(type) {
 					case Tuple:
-						lib.Warning("Erlang sent a etf.Tuple as a map key: %#v => %#v. Ignored this item. Ergo doesn't support it.", stack.tmp, term)
+						// TODO
+						// lib.Warning("Erlang sent a etf.Tuple as a map key: %#v => %#v. Ignored this item. Ergo doesn't support it.", stack.tmp, term)
 					default:
 						stack.term.(Map)[stack.tmp] = term
 					}
@@ -936,16 +931,16 @@ func Decode(packet []byte, cache []Atom, options DecodeOptions) (retTerm Term, r
 					return nil, nil, errMalformedPid
 				}
 
-				name, ok := term.(Atom)
+				name, ok := term.(gen.Atom)
 				if !ok {
 					return nil, nil, errMalformedPid
 				}
-				pid := Pid{
+				pid := gen.PID{
 					Node: name,
 					// Same as NEW_PID_EXT except the Creation field is
 					// only one byte and only two bits are significant,
 					// the rest are to be 0.
-					Creation: uint32(packet[8]) & 3,
+					Creation: int64(packet[8]) & 3,
 				}
 
 				id := uint64(binary.BigEndian.Uint32(packet[:4]))
@@ -968,16 +963,16 @@ func Decode(packet []byte, cache []Atom, options DecodeOptions) (retTerm Term, r
 					return nil, nil, errMalformedNewPid
 				}
 
-				name, ok := term.(Atom)
+				name, ok := term.(gen.Atom)
 				if !ok {
 					return nil, nil, errMalformedPid
 				}
 
 				id := uint64(binary.BigEndian.Uint32(packet[:4]))
 				serial := uint64(binary.BigEndian.Uint32(packet[4:8]))
-				pid := Pid{
+				pid := gen.PID{
 					Node:     name,
-					Creation: binary.BigEndian.Uint32(packet[8:12]),
+					Creation: int64(binary.BigEndian.Uint32(packet[8:12])),
 				}
 				if options.FlagBigPidRef {
 					id = id | (serial << 32)
@@ -994,7 +989,7 @@ func Decode(packet []byte, cache []Atom, options DecodeOptions) (retTerm Term, r
 
 			case ettNewRef:
 				var id uint32
-				name, ok := term.(Atom)
+				name, ok := term.(gen.Atom)
 				if !ok {
 					return nil, nil, errMalformedRef
 				}
@@ -1013,9 +1008,9 @@ func Decode(packet []byte, cache []Atom, options DecodeOptions) (retTerm Term, r
 					return nil, nil, errMalformedRef
 				}
 
-				ref := Ref{
+				ref := gen.Ref{
 					Node:     name,
-					Creation: uint32(packet[0]),
+					Creation: int64(packet[0]),
 				}
 				packet = packet[1:]
 
@@ -1037,7 +1032,7 @@ func Decode(packet []byte, cache []Atom, options DecodeOptions) (retTerm Term, r
 
 			case ettNewerRef:
 				var id uint32
-				name, ok := term.(Atom)
+				name, ok := term.(gen.Atom)
 				if !ok {
 					return nil, nil, errMalformedRef
 				}
@@ -1056,9 +1051,9 @@ func Decode(packet []byte, cache []Atom, options DecodeOptions) (retTerm Term, r
 					return nil, nil, errMalformedRef
 				}
 
-				ref := Ref{
+				ref := gen.Ref{
 					Node:     name,
-					Creation: binary.BigEndian.Uint32(packet[:4]),
+					Creation: int64(binary.BigEndian.Uint32(packet[:4])),
 				}
 				packet = packet[4:]
 
@@ -1083,7 +1078,7 @@ func Decode(packet []byte, cache []Atom, options DecodeOptions) (retTerm Term, r
 					return nil, nil, errMalformedPort
 				}
 
-				name, ok := term.(Atom)
+				name, ok := term.(gen.Atom)
 				if !ok {
 					return nil, nil, errMalformedPort
 				}
@@ -1103,7 +1098,7 @@ func Decode(packet []byte, cache []Atom, options DecodeOptions) (retTerm Term, r
 					return nil, nil, errMalformedNewPort
 				}
 
-				name, ok := term.(Atom)
+				name, ok := term.(gen.Atom)
 				if !ok {
 					return nil, nil, errMalformedNewPort
 				}
@@ -1119,78 +1114,12 @@ func Decode(packet []byte, cache []Atom, options DecodeOptions) (retTerm Term, r
 				stack.i++
 
 			case ettNewFun:
-				fun := stack.term.(Function)
-				switch stack.i {
-				case 0:
-					// Module
-					module, ok := term.(Atom)
-					if !ok {
-						return nil, nil, errMalformedFun
-					}
-					fun.Module = module
-
-				case 1:
-					// OldIndex
-					oldindex, ok := term.(int)
-					if !ok {
-						return nil, nil, errMalformedFun
-					}
-					fun.OldIndex = uint32(oldindex)
-
-				case 2:
-					// OldUnique
-					olduniq, ok := term.(int64)
-					if !ok {
-						return nil, nil, errMalformedFun
-					}
-					fun.OldUnique = uint32(olduniq)
-
-				case 3:
-					// Pid
-					pid, ok := term.(Pid)
-					if !ok {
-						return nil, nil, errMalformedFun
-					}
-					fun.Pid = pid
-
-				default:
-					if len(fun.FreeVars) < (stack.i-4)+1 {
-						return nil, nil, errMalformedFun
-					}
-					fun.FreeVars[stack.i-4] = term
-				}
-
-				stack.term = fun
+				// do nothing
 				stack.i++
 
 			case ettExport:
-				exp := stack.term.(Export)
-				switch stack.i {
-				case 0:
-					module, ok := term.(Atom)
-					if !ok {
-						return nil, nil, errMalformedExport
-					}
-					exp.Module = module
-
-				case 1:
-					function, ok := term.(Atom)
-					if !ok {
-						return nil, nil, errMalformedExport
-					}
-					exp.Function = function
-
-				case 2:
-					arity, ok := term.(int)
-					if !ok {
-						return nil, nil, errMalformedExport
-					}
-					exp.Arity = arity
-
-				default:
-					return nil, nil, errMalformedExport
-
-				}
+				// do nothing
+				stack.i++
 
 			default:
 				return nil, nil, errInternal
@@ -1596,7 +1525,7 @@ func Decode(packet []byte, cache []Atom, options DecodeOptions) (retTerm Term, r
 						field.SetString(string(v))
 					case string:
 						field.SetString(v)
-					case Atom:
+					case gen.Atom:
 						field.SetString(string(v))
 					default:
 						if stack.strict {
@@ -1627,12 +1556,12 @@ func Decode(packet []byte, cache []Atom, options DecodeOptions) (retTerm Term, r
 				default:
 					if stack.strict {
 						if field.Type().Name() == "Alias" {
-							term = Alias(term.(Ref))
+							term = gen.Alias(term.(gen.Ref))
 						}
 						field.Set(reflect.ValueOf(term))
 					} else {
 						// wrap it to catch the panic
-						setValue := func(f reflect.Value, v interface{}) (ok bool) {
+						setValue := func(f reflect.Value, v any) (ok bool) {
 							if lib.Recover() {
 								defer func() {
 									if r := recover(); r != nil {
@@ -1641,7 +1570,7 @@ func Decode(packet []byte, cache []Atom, options DecodeOptions) (retTerm Term, r
 								}()
 							}
 							if field.Type().Name() == "Alias" {
-								v = Alias(v.(Ref))
+								v = gen.Alias(v.(gen.Ref))
 							}
 							f.Set(reflect.ValueOf(v))
 							return true

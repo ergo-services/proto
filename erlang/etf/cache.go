@@ -1,6 +1,7 @@
 package etf
 
 import (
+	"ergo.services/ergo/gen"
 	"sync"
 )
 
@@ -17,22 +18,22 @@ type AtomCache struct {
 }
 
 type AtomCacheIn struct {
-	Atoms [maxCacheItems]*Atom
+	Atoms [maxCacheItems]*gen.Atom
 }
 
 // AtomCache
 type AtomCacheOut struct {
 	sync.RWMutex
-	cacheMap  map[Atom]int16
+	cacheMap  map[gen.Atom]int16
 	id        int16
-	cacheList [maxCacheItems]Atom
+	cacheList [maxCacheItems]gen.Atom
 }
 
 // CacheItem
 type CacheItem struct {
 	ID      int16
 	Encoded bool
-	Name    Atom
+	Name    gen.Atom
 }
 
 var (
@@ -40,7 +41,7 @@ var (
 		New: func() interface{} {
 			l := &EncodingAtomCache{
 				L:     make([]CacheItem, 0, 255),
-				added: make(map[Atom]uint8),
+				added: make(map[gen.Atom]uint8),
 			}
 			l.original = l.L
 			return l
@@ -53,7 +54,7 @@ func NewAtomCache() AtomCache {
 	return AtomCache{
 		In: &AtomCacheIn{},
 		Out: &AtomCacheOut{
-			cacheMap: make(map[Atom]int16),
+			cacheMap: make(map[gen.Atom]int16),
 			id:       -1,
 		},
 	}
@@ -61,21 +62,21 @@ func NewAtomCache() AtomCache {
 
 type AtomMapping struct {
 	MutexIn  sync.RWMutex
-	In       map[Atom]Atom
+	In       map[gen.Atom]gen.Atom
 	MutexOut sync.RWMutex
-	Out      map[Atom]Atom
+	Out      map[gen.Atom]gen.Atom
 }
 
 // NewAtomMapping
 func NewAtomMapping() *AtomMapping {
 	return &AtomMapping{
-		In:  make(map[Atom]Atom),
-		Out: make(map[Atom]Atom),
+		In:  make(map[gen.Atom]gen.Atom),
+		Out: make(map[gen.Atom]gen.Atom),
 	}
 }
 
 // Append
-func (a *AtomCacheOut) Append(atom Atom) (int16, bool) {
+func (a *AtomCacheOut) Append(atom gen.Atom) (int16, bool) {
 	a.Lock()
 	defer a.Unlock()
 
@@ -95,7 +96,7 @@ func (a *AtomCacheOut) Append(atom Atom) (int16, bool) {
 }
 
 // LastID
-func (a *AtomCacheOut) LastAdded() (Atom, int16) {
+func (a *AtomCacheOut) LastAdded() (gen.Atom, int16) {
 	a.RLock()
 	defer a.RUnlock()
 	l := len(a.cacheList)
@@ -106,7 +107,7 @@ func (a *AtomCacheOut) LastAdded() (Atom, int16) {
 }
 
 // ListSince
-func (a *AtomCacheOut) ListSince(id int16) []Atom {
+func (a *AtomCacheOut) ListSince(id int16) []gen.Atom {
 	if id < 0 {
 		id = 0
 	}
@@ -120,7 +121,7 @@ func (a *AtomCacheOut) ListSince(id int16) []Atom {
 type EncodingAtomCache struct {
 	L           []CacheItem
 	original    []CacheItem
-	added       map[Atom]uint8
+	added       map[gen.Atom]uint8
 	HasLongAtom bool
 }
 
@@ -168,7 +169,7 @@ func (l *EncodingAtomCache) Append(a CacheItem) uint8 {
 }
 
 // Delete
-func (l *EncodingAtomCache) Delete(atom Atom) {
+func (l *EncodingAtomCache) Delete(atom gen.Atom) {
 	// clean up in order to get rid of map reallocation which is pretty expensive
 	delete(l.added, atom)
 }
