@@ -185,16 +185,21 @@ func (c *connection) SendPID(from gen.PID, to gen.PID, options gen.MessageOption
 	if to.Creation != c.peer_creation {
 		return gen.ErrProcessIncarnation
 	}
-
-	return nil
+	control := etf.Tuple{distProtoSEND, gen.Atom(""), to}
+	return c.send(control, message)
 }
 
 func (c *connection) SendProcessID(from gen.PID, to gen.ProcessID, options gen.MessageOptions, message any) error {
-	return nil
+	control := etf.Tuple{distProtoREG_SEND, from, gen.Atom(""), to.Name}
+	return c.send(control, message)
 }
 
 func (c *connection) SendAlias(from gen.PID, to gen.Alias, options gen.MessageOptions, message any) error {
-	return nil
+	if c.peer_erlang_flags.IsEnabled(erlang.FlagAlias) == false {
+		return gen.ErrUnsupported
+	}
+	control := etf.Tuple{distProtoALIAS_SEND, from, to}
+	return c.send(control, message)
 }
 
 func (c *connection) SendEvent(from gen.PID, options gen.MessageOptions, message gen.MessageEvent) error {
@@ -210,22 +215,28 @@ func (c *connection) SendResponse(from gen.PID, to gen.PID, ref gen.Ref, options
 }
 
 func (c *connection) SendTerminatePID(target gen.PID, reason error) error {
+	// control:= etf.Tuple{distProtoEXIT, terminated, to, etf.Atom(reason)}
+	// control:= etf.Tuple{distProtoMONITOR_EXIT, terminated, to, ref, etf.Atom(reason)}
 	return nil
 }
 
 func (c *connection) SendTerminateProcessID(target gen.ProcessID, reason error) error {
+	// control:= etf.Tuple{distProtoMONITOR_EXIT, etf.Atom(terminated.Name), to, ref, etf.Atom(reason)},
 	return nil
 }
 
 func (c *connection) SendTerminateAlias(target gen.Alias, reason error) error {
-	return nil
+	return gen.ErrUnsupported
 }
 
 func (c *connection) SendTerminateEvent(target gen.Event, reason error) error {
-	return nil
+	return gen.ErrUnsupported
 }
 
 func (c *connection) CallPID(ref gen.Ref, from gen.PID, to gen.PID, options gen.MessageOptions, message any) error {
+	if to.Creation != c.peer_creation {
+		return gen.ErrProcessIncarnation
+	}
 	return nil
 }
 
@@ -238,70 +249,98 @@ func (c *connection) CallAlias(ref gen.Ref, from gen.PID, to gen.Alias, options 
 }
 
 func (c *connection) LinkPID(pid gen.PID, target gen.PID) error {
+	if target.Creation != c.peer_creation {
+		return gen.ErrProcessIncarnation
+	}
+	// control := etf.Tuple{distProtoLINK, local, remote}
 	return nil
 }
 
 func (c *connection) UnlinkPID(pid gen.PID, target gen.PID) error {
+	// control := etf.Tuple{distProtoUNLINK, local, remote}
 	return nil
 }
 
 func (c *connection) LinkProcessID(pid gen.PID, target gen.ProcessID) error {
-	return nil
+	return gen.ErrUnsupported
 }
 
 func (c *connection) UnlinkProcessID(pid gen.PID, target gen.ProcessID) error {
-	return nil
+	return gen.ErrUnsupported
 }
 
 func (c *connection) LinkAlias(pid gen.PID, target gen.Alias) error {
-	return nil
+	return gen.ErrUnsupported
 }
 
 func (c *connection) UnlinkAlias(pid gen.PID, target gen.Alias) error {
-	return nil
+	return gen.ErrUnsupported
 }
 
 func (c *connection) LinkEvent(pid gen.PID, target gen.Event) ([]gen.MessageEvent, error) {
-	return nil, nil
+	return nil, gen.ErrUnsupported
 }
 
 func (c *connection) UnlinkEvent(pid gen.PID, target gen.Event) error {
-	return nil
+	return gen.ErrUnsupported
 }
 
 func (c *connection) MonitorPID(pid gen.PID, target gen.PID) error {
+	if target.Creation != c.peer_creation {
+		return gen.ErrProcessIncarnation
+	}
+	// control := etf.Tuple{distProtoMONITOR, local, remote, ref}
 	return nil
 }
 
 func (c *connection) DemonitorPID(pid gen.PID, target gen.PID) error {
+	// control := etf.Tuple{distProtoDEMONITOR, local, remote, ref}
 	return nil
 }
 
 func (c *connection) MonitorProcessID(pid gen.PID, target gen.ProcessID) error {
+	// control := etf.Tuple{distProtoMONITOR, local, etf.Atom(remote.Name), ref}
 	return nil
 }
 
 func (c *connection) DemonitorProcessID(pid gen.PID, target gen.ProcessID) error {
+	// control := etf.Tuple{distProtoDEMONITOR, local, etf.Atom(remote.Name), ref}
 	return nil
 }
 
 func (c *connection) MonitorAlias(pid gen.PID, target gen.Alias) error {
-	return nil
+	return gen.ErrUnsupported
 }
 
 func (c *connection) DemonitorAlias(pid gen.PID, target gen.Alias) error {
-	return nil
+	return gen.ErrUnsupported
 }
 
 func (c *connection) MonitorEvent(pid gen.PID, target gen.Event) ([]gen.MessageEvent, error) {
-	return nil, nil
+	return nil, gen.ErrUnsupported
 }
 
 func (c *connection) DemonitorEvent(pid gen.PID, target gen.Event) error {
-	return nil
+	return gen.ErrUnsupported
 }
 
 func (c *connection) RemoteSpawn(name gen.Atom, options gen.ProcessOptionsExtra) (gen.PID, error) {
+	if c.peer_erlang_flags.IsEnabled(erlang.FlagSpawn) == false {
+		return gen.PID{}, gen.ErrUnsupported
+	}
+	// optlist := etf.List{}
+	// if request.Options.Name != "" {
+	// 	optlist = append(optlist, etf.Tuple{etf.Atom("name"), etf.Atom(request.Options.Name)})
+	//
+	// }
+	// msg := &sendMessage{
+	// 	control: etf.Tuple{distProtoSPAWN_REQUEST, request.Ref, request.From, request.From,
+	// 		// {M,F,A}
+	// 		etf.Tuple{etf.Atom(behaviorName), etf.Atom(request.Options.Function), len(args)},
+	// 		optlist,
+	// 	},
+	// 	payload: args,
+	// }
 	return gen.PID{}, nil
 }
 
@@ -881,7 +920,7 @@ func (c *connection) decodeFragment(fragment []byte) (*lib.Buffer, error) {
 	return nil, nil
 }
 
-func (c *connection) send(message any) error {
+func (c *connection) send(control, payload any) error {
 	packetBuffer := lib.TakeBuffer()
 	lenMessage, lenAtomCache, lenPacket := 0, 0, 0
 
@@ -899,10 +938,154 @@ func (c *connection) send(message any) error {
 	defer etf.ReleaseEncodingAtomCache(encodingAtomCache)
 	encodingOptions := etf.EncodeOptions{
 		EncodingAtomCache: encodingAtomCache,
-		AtomMapping:       dc.mapping,
-		NodeName:          dc.nodename,
-		PeerName:          dc.peername,
+		AtomMapping:       c.mapping,
+		NodeName:          c.nodename,
+		PeerName:          c.peername,
 	}
+
+	// encode Control
+	if err := etf.Encode(control, packetBuffer, encodingOptions); err != nil {
+		lib.ReleaseBuffer(packetBuffer)
+		return fmt.Errorf("can not encode control message: %s", err)
+	}
+	if payload != nil {
+		if err := etf.Encode(payload, packetBuffer, encodingOptions); err != nil {
+			lib.ReleaseBuffer(packetBuffer)
+			return fmt.Errorf("can not encode payload message: %s", err)
+		}
+	}
+	lenMessage = packetBuffer.Len() - reserveHeaderAtomCache
+
+	// encode Header Atom Cache if its enabled
+	if cacheEnabled && encodingAtomCache.Len() > 0 {
+		atomCacheBuffer = lib.TakeBuffer()
+		atomCacheBuffer.Allocate(1024)
+		c.encodeDistHeaderAtomCache(atomCacheBuffer, encodingOptions.SenderAtomCache, encodingAtomCache)
+
+		lenAtomCache = atomCacheBuffer.Len() - 1024
+		if lenAtomCache > reserveHeaderAtomCache-1024 {
+			// we got huge atom cache
+			atomCacheBuffer.Append(packetBuffer.B[startDataPosition:])
+			startDataPosition = 1024
+			lib.ReleaseBuffer(packetBuffer)
+			packetBuffer = atomCacheBuffer
+		} else {
+			startDataPosition -= lenAtomCache
+			copy(packetBuffer.B[startDataPosition:], atomCacheBuffer.B[1024:])
+			lib.ReleaseBuffer(atomCacheBuffer)
+		}
+	} else {
+		lenAtomCache = 1
+		startDataPosition -= lenAtomCache
+		packetBuffer.B[startDataPosition] = byte(0)
+	}
+
+	for {
+		// 4 (packet len) + 1 (dist header: 131) + 1 (dist header: protoDistMessage[Z]) + lenAtomCache
+		lenPacket = 1 + 1 + lenAtomCache + lenMessage
+		if !fragmentationEnabled || lenMessage < options.FragmentationUnit {
+			// send as a single packet
+			startDataPosition -= 1
+			packetBuffer.B[startDataPosition] = protoDistMessage // 68
+
+			// 4 (packet len) + 1 (protoDist)
+			startDataPosition -= 4 + 1
+
+			binary.BigEndian.PutUint32(packetBuffer.B[startDataPosition:], uint32(lenPacket))
+			packetBuffer.B[startDataPosition+4] = protoDist // 131
+
+			bytesOut, err := c.flusher.Write(packetBuffer.B[startDataPosition:])
+			if err != nil {
+				return err
+			}
+			atomic.AddUint64(&dc.stats.BytesOut, uint64(bytesOut))
+			break
+		}
+
+		// Message should be fragmented
+
+		// https://erlang.org/doc/apps/erts/erl_ext_dist.html#distribution-header-for-fragmented-messages
+		// "The entire atom cache and control message has to be part of the starting fragment"
+		sequenceID := uint64(atomic.AddInt64(&dc.sequenceID, 1))
+		numFragments := lenMessage/options.FragmentationUnit + 1
+
+		// 1 (dist header: 131) + 1 (dist header: protoDistFragment) + 8 (sequenceID) + 8 (fragmentID) + ...
+		lenPacket = 1 + 1 + 8 + 8 + lenAtomCache + options.FragmentationUnit
+
+		// 4 (packet len) + 1 (dist header: 131) + 1 (dist header: protoDistFragment[Z]) + 8 (sequenceID) + 8 (fragmentID)
+		startDataPosition -= 22
+
+		packetBuffer.B[startDataPosition+5] = protoDistFragment1 // 69
+
+		binary.BigEndian.PutUint64(packetBuffer.B[startDataPosition+6:], uint64(sequenceID))
+		binary.BigEndian.PutUint64(packetBuffer.B[startDataPosition+14:], uint64(numFragments))
+
+		binary.BigEndian.PutUint32(packetBuffer.B[startDataPosition:], uint32(lenPacket))
+		packetBuffer.B[startDataPosition+4] = protoDist // 131
+		bytesOut, err := c.flusher.Write(packetBuffer.B[startDataPosition : startDataPosition+4+lenPacket])
+		if err != nil {
+			return err
+		}
+		atomic.AddUint64(&dc.stats.BytesOut, uint64(bytesOut))
+		startDataPosition += 4 + lenPacket
+		numFragments--
+
+	nextFragment:
+
+		if len(packetBuffer.B[startDataPosition:]) > options.FragmentationUnit {
+			lenPacket = 1 + 1 + 8 + 8 + options.FragmentationUnit
+			// reuse the previous 22 bytes for the next frame header
+			startDataPosition -= 22
+
+		} else {
+			// the last one
+			lenPacket = 1 + 1 + 8 + 8 + len(packetBuffer.B[startDataPosition:])
+			startDataPosition -= 22
+		}
+
+		packetBuffer.B[startDataPosition+5] = protoDistFragmentN // 70
+
+		binary.BigEndian.PutUint64(packetBuffer.B[startDataPosition+6:], uint64(sequenceID))
+		binary.BigEndian.PutUint64(packetBuffer.B[startDataPosition+14:], uint64(numFragments))
+		// send fragment
+		binary.BigEndian.PutUint32(packetBuffer.B[startDataPosition:], uint32(lenPacket))
+		packetBuffer.B[startDataPosition+4] = protoDist // 131
+		bytesOut, err := c.flusher.Write(packetBuffer.B[startDataPosition : startDataPosition+4+lenPacket])
+		if err != nil {
+			return err
+		}
+		atomic.AddUint64(&c.BytesOut, uint64(bytesOut))
+		startDataPosition += 4 + lenPacket
+		numFragments--
+		if numFragments > 0 {
+			goto nextFragment
+		}
+
+		// done
+		break
+	}
+
+	lib.ReleaseBuffer(packetBuffer)
+
+	if cacheEnabled == false {
+		return nil
+	}
+
+	// get updates from the connection AtomCache and update the sender's cache (senderAtomCache)
+	lastAddedAtom, lastAddedID := encodingOptions.AtomCache.LastAdded()
+	if lastAddedID < 0 {
+		return nil
+	}
+	if _, exist := encodingOptions.SenderAtomCache[lastAddedAtom]; exist {
+		return nil
+	}
+
+	encodingOptions.AtomCache.RLock()
+	for _, a := range encodingOptions.AtomCache.ListSince(lastAddedID) {
+		encodingOptions.SenderAtomCache[a] = etf.CacheItem{ID: lastAddedID, Name: a, Encoded: false}
+		lastAddedID++
+	}
+	encodingOptions.AtomCache.RUnlock()
 
 	atomic.AddUint64(&c.messagesOut, 1)
 	atomic.AddUint64(&c.bytesOut, 1)
