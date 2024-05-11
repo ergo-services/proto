@@ -10,15 +10,16 @@ import (
 	"time"
 
 	"ergo.services/ergo/gen"
+	"ergo.services/proto/erlang"
 )
 
 type handshake struct {
-	flags    flags
+	flags    erlang.Flags
 	version5 bool
 }
 
 type Options struct {
-	Flags []Flag
+	Flags []erlang.Flag
 	// UseVersion5 makes DIST handhshake to use 5th version (by default is 6)
 	// Must be enabled for making connection with Erlang 22 and earlier
 	UseVersion5 bool
@@ -38,7 +39,7 @@ func Create(options Options) gen.NetworkHandshake {
 func (h *handshake) NetworkFlags() gen.NetworkFlags {
 	return gen.NetworkFlags{
 		Enable:            true,
-		EnableRemoteSpawn: h.flags.isEnabled(FlagSpawn),
+		EnableRemoteSpawn: h.flags.IsEnabled(erlang.FlagSpawn),
 	}
 }
 
@@ -105,40 +106,40 @@ func (h *handshake) readMessage(conn net.Conn, timeout time.Duration, chunk []by
 	}
 }
 
-func DefaultFlags() []Flag {
-	return []Flag{
-		FlagPublished,
-		FlagUnicodeIO,
-		FlagDistMonitor,
-		FlagNewFloats,
-		FlagBitBinaries,
-		FlagDistMonitorName,
-		FlagExtendedPidsPorts,
-		FlagExtendedReferences,
-		FlagAtomCache,
-		FlagHiddenAtomCache,
-		FlagFunTags,
-		FlagNewFunTags,
-		FlagExportPtrTag,
-		FlagSmallAtomTags,
-		FlagUTF8Atoms,
-		FlagMapTag,
-		FlagHandshake23,
-		FlagUnlinkID,
-		FlagDistHdrAtomCache,
-		FlagFragments,
-		FlagBigCreation,
-		FlagAlias,
-		FlagV4NC,
+func DefaultFlags() []erlang.Flag {
+	return []erlang.Flag{
+		erlang.FlagPublished,
+		erlang.FlagUnicodeIO,
+		erlang.FlagDistMonitor,
+		erlang.FlagNewFloats,
+		erlang.FlagBitBinaries,
+		erlang.FlagDistMonitorName,
+		erlang.FlagExtendedPidsPorts,
+		erlang.FlagExtendedReferences,
+		erlang.FlagAtomCache,
+		erlang.FlagHiddenAtomCache,
+		erlang.FlagFunTags,
+		erlang.FlagNewFunTags,
+		erlang.FlagExportPtrTag,
+		erlang.FlagSmallAtomTags,
+		erlang.FlagUTF8Atoms,
+		erlang.FlagMapTag,
+		erlang.FlagHandshake23,
+		erlang.FlagUnlinkID,
+		erlang.FlagDistHdrAtomCache,
+		erlang.FlagFragments,
+		erlang.FlagBigCreation,
+		erlang.FlagAlias,
+		erlang.FlagV4NC,
 	}
 }
 
-func toFlags(f ...Flag) flags {
+func toFlags(f ...erlang.Flag) erlang.Flags {
 	var fs uint64
 	for _, v := range f {
 		fs |= uint64(v)
 	}
-	return flags(fs)
+	return erlang.Flags(fs)
 }
 
 func genDigest(challenge uint32, cookie string) []byte {

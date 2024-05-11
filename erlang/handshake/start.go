@@ -11,6 +11,7 @@ import (
 
 	"ergo.services/ergo/gen"
 	"ergo.services/ergo/lib"
+	"ergo.services/proto/erlang"
 )
 
 func (h *handshake) Start(node gen.NodeHandshake, conn net.Conn, options gen.HandshakeOptions) (gen.HandshakeResult, error) {
@@ -25,18 +26,14 @@ func (h *handshake) Start(node gen.NodeHandshake, conn net.Conn, options gen.Han
 	result.NodeFlags = options.Flags
 	challenge = rand.Uint32()
 
-	df := h.flags
-	if options.Flags.Enable && options.Flags.EnableRemoteSpawn {
-		df = df.enable(FlagSpawn)
-	}
 	await := []byte{'s', 'n', 'N'}
 
 	if h.version5 {
-		if err := sendName(conn, node, df); err != nil {
+		if err := h.sendName(conn, node, options.Flags); err != nil {
 			return result, err
 		}
 	} else {
-		if err := sendNameVersion6(conn, node, df); err != nil {
+		if err := h.sendNameVersion6(conn, node, options.Flags); err != nil {
 			return result, err
 		}
 	}
@@ -58,12 +55,12 @@ func (h *handshake) Start(node gen.NodeHandshake, conn net.Conn, options gen.Han
 				return result, fmt.Errorf("malformed DIST handshake ('n' length)")
 			}
 
-			peerChallenge, err := readChallenge(message[1:], &result)
+			peerChallenge, err := h.readChallenge(message[1:], &result)
 			if err != nil {
 				return result, err
 			}
 
-			if err := sendChallengeReply(conn, peerChallenge, challenge, options.Cookie); err != nil {
+			if err := h.sendChallengeReply(conn, peerChallenge, challenge, options.Cookie); err != nil {
 				return result, err
 			}
 
@@ -76,19 +73,19 @@ func (h *handshake) Start(node gen.NodeHandshake, conn net.Conn, options gen.Han
 				return result, fmt.Errorf("malformed DIST handshake ('N' length)")
 			}
 
-			peerChallenge, err := readChallengeVersion6(message[1:], &result)
+			peerChallenge, err := h.readChallengeVersion6(message[1:], &result)
 			if err != nil {
 				return result, err
 			}
 
 			if h.version5 {
 				// upgrade handshake to version 6 by sending complement message
-				if err := sendComplement(conn, h.flags, node.Creation()); err != nil {
+				if err := h.sendComplement(conn, h.flags, node.Creation()); err != nil {
 					return result, err
 				}
 			}
 
-			if err := sendChallengeReply(conn, peerChallenge, challenge, options.Cookie); err != nil {
+			if err := h.sendChallengeReply(conn, peerChallenge, challenge, options.Cookie); err != nil {
 				return result, err
 			}
 
@@ -124,7 +121,11 @@ func (h *handshake) Start(node gen.NodeHandshake, conn net.Conn, options gen.Han
 	}
 }
 
-func sendName(conn net.Conn, node gen.NodeHandshake, df flags) error {
+func (h *handshake) sendName(conn net.Conn, node gen.NodeHandshake, flags gen.NetworkFlags) error {
+	f := h.flags
+	if flags.Enable && flags.EnableRemoteSpawn {
+		f = f.Enable(erlang.FlagSpawn)
+	}
 	nodename := node.Name()
 	_, tls := conn.(*tls.Conn)
 
@@ -134,8 +135,8 @@ func sendName(conn net.Conn, node gen.NodeHandshake, df flags) error {
 		buf := make([]byte, dataLength+4)
 		binary.BigEndian.PutUint32(buf[0:4], uint32(dataLength))
 		buf[4] = 'n'
-		binary.BigEndian.PutUint16(buf[5:7], 5)              // uint16
-		binary.BigEndian.PutUint32(buf[7:11], df.toUint32()) // uint32
+		binary.BigEndian.PutUint16(buf[5:7], 5)             // uint16
+		binary.BigEndian.PutUint32(buf[7:11], f.ToUint32()) // uint32
 		copy(buf[11:], []byte(nodename))
 		if _, err := conn.Write(buf); err != nil {
 			return err
@@ -146,8 +147,8 @@ func sendName(conn net.Conn, node gen.NodeHandshake, df flags) error {
 	buf := make([]byte, dataLength+2)
 	binary.BigEndian.PutUint16(buf[0:2], uint16(dataLength))
 	buf[2] = 'n'
-	binary.BigEndian.PutUint16(buf[3:5], 5)             // uint16
-	binary.BigEndian.PutUint32(buf[5:9], df.toUint32()) // uint32
+	binary.BigEndian.PutUint16(buf[3:5], 5)            // uint16
+	binary.BigEndian.PutUint32(buf[5:9], f.ToUint32()) // uint32
 	copy(buf[9:], []byte(nodename))
 	if _, err := conn.Write(buf); err != nil {
 		return err
@@ -155,17 +156,21 @@ func sendName(conn net.Conn, node gen.NodeHandshake, df flags) error {
 	return nil
 }
 
-func sendNameVersion6(conn net.Conn, node gen.NodeHandshake, df flags) error {
+func (h *handshake) sendNameVersion6(conn net.Conn, node gen.NodeHandshake, flags gen.NetworkFlags) error {
 	_, tls := conn.(*tls.Conn)
 	creation := uint32(node.Creation())
 	nodename := node.Name()
+	f := h.flags
+	if flags.Enable && flags.EnableRemoteSpawn {
+		f = f.Enable(erlang.FlagSpawn)
+	}
 	dataLength := 15 + len(nodename) // 1 + 8 (flags) + 4 (creation) + 2 (len nodename)
 
 	if tls {
 		buf := make([]byte, dataLength+4)
 		binary.BigEndian.PutUint32(buf[0:4], uint32(dataLength))
 		buf[4] = 'N'
-		binary.BigEndian.PutUint64(buf[5:13], df.toUint64())          // uint64
+		binary.BigEndian.PutUint64(buf[5:13], f.ToUint64())           // uint64
 		binary.BigEndian.PutUint32(buf[13:17], creation)              //uint32
 		binary.BigEndian.PutUint16(buf[17:19], uint16(len(nodename))) // uint16
 		copy(buf[19:], []byte(nodename))
@@ -178,7 +183,7 @@ func sendNameVersion6(conn net.Conn, node gen.NodeHandshake, df flags) error {
 	buf := make([]byte, dataLength+2)
 	binary.BigEndian.PutUint16(buf[0:2], uint16(dataLength))
 	buf[2] = 'N'
-	binary.BigEndian.PutUint64(buf[3:11], df.toUint64())          // uint64
+	binary.BigEndian.PutUint64(buf[3:11], f.ToUint64())           // uint64
 	binary.BigEndian.PutUint32(buf[11:15], creation)              // uint32
 	binary.BigEndian.PutUint16(buf[15:17], uint16(len(nodename))) // uint16
 	copy(buf[17:], []byte(nodename))
@@ -188,33 +193,40 @@ func sendNameVersion6(conn net.Conn, node gen.NodeHandshake, df flags) error {
 	return nil
 }
 
-func readChallenge(b []byte, result *gen.HandshakeResult) (uint32, error) {
+func (h *handshake) readChallenge(b []byte, result *gen.HandshakeResult) (uint32, error) {
 	var challenge uint32
 
 	if len(b) < 15 {
 		return challenge, fmt.Errorf("malformed DIST handshake challenge")
 	}
-	flags := flags(binary.BigEndian.Uint32(b[2:6]))
+	peerFlags := erlang.Flags(binary.BigEndian.Uint32(b[2:6]))
 	result.PeerFlags.Enable = true
-	result.PeerFlags.EnableRemoteSpawn = flags.isEnabled(FlagSpawn)
+	result.PeerFlags.EnableRemoteSpawn = peerFlags.IsEnabled(erlang.FlagSpawn)
+	result.Custom = erlang.ConnectionOptions{
+		NodeFlags: h.flags,
+		PeerFlags: peerFlags,
+	}
 
 	version := binary.BigEndian.Uint16(b[0:2])
 	if version != 5 {
 		return challenge, fmt.Errorf("malformed DIST handshake version %d", version)
 	}
 
-	result.Custom = flags
 	result.Peer = gen.Atom(b[10:])
 	challenge = binary.BigEndian.Uint32(b[6:10])
 	return challenge, nil
 }
 
-func readChallengeVersion6(b []byte, result *gen.HandshakeResult) (uint32, error) {
+func (h *handshake) readChallengeVersion6(b []byte, result *gen.HandshakeResult) (uint32, error) {
 	var challenge uint32
-	flags := flags(binary.BigEndian.Uint64(b[0:8]))
+	peerFlags := erlang.Flags(binary.BigEndian.Uint64(b[0:8]))
 	result.PeerFlags.Enable = true
-	result.PeerFlags.EnableRemoteSpawn = flags.isEnabled(FlagSpawn)
+	result.PeerFlags.EnableRemoteSpawn = peerFlags.IsEnabled(erlang.FlagSpawn)
 	result.PeerCreation = int64(binary.BigEndian.Uint32(b[12:16]))
+	result.Custom = erlang.ConnectionOptions{
+		NodeFlags: h.flags,
+		PeerFlags: peerFlags,
+	}
 
 	challenge = binary.BigEndian.Uint32(b[8:12])
 
@@ -224,7 +236,7 @@ func readChallengeVersion6(b []byte, result *gen.HandshakeResult) (uint32, error
 	return challenge, nil
 }
 
-func sendChallengeReply(conn net.Conn, peerChallenge uint32, challenge uint32, cookie string) error {
+func (h *handshake) sendChallengeReply(conn net.Conn, peerChallenge uint32, challenge uint32, cookie string) error {
 	_, tls := conn.(*tls.Conn)
 	digest := genDigest(peerChallenge, cookie)
 	dataLength := 5 + len(digest) // 1 (byte) + 4 (challenge) + 16 (digest)
@@ -251,9 +263,9 @@ func sendChallengeReply(conn net.Conn, peerChallenge uint32, challenge uint32, c
 	return nil
 }
 
-func sendComplement(conn net.Conn, f flags, creation int64) error {
+func (h *handshake) sendComplement(conn net.Conn, f erlang.Flags, creation int64) error {
 	_, tls := conn.(*tls.Conn)
-	node_flags := uint32(f.toUint64() >> 32)
+	node_flags := uint32(f.ToUint64() >> 32)
 	dataLength := 9 // 1 + 4 (flag high) + 4 (creation)
 	if tls {
 		buf := make([]byte, dataLength+4)

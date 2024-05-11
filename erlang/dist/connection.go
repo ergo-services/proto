@@ -13,6 +13,7 @@ import (
 
 	"ergo.services/ergo/gen"
 	"ergo.services/ergo/lib"
+	"ergo.services/proto/erlang"
 	"ergo.services/proto/erlang/etf"
 )
 
@@ -26,12 +27,14 @@ type connection struct {
 	log                 gen.Log
 	node_flags          gen.NetworkFlags
 	node_maxmessagesize int
+	node_erlang_flags   erlang.Flags
 
 	peer                gen.Atom
 	peer_creation       int64
 	peer_flags          gen.NetworkFlags
 	peer_version        gen.Version
 	peer_maxmessagesize int
+	peer_erlang_flags   erlang.Flags
 
 	handshakeVersion gen.Version
 	protoVersion     gen.Version
@@ -48,12 +51,29 @@ type connection struct {
 	conn    net.Conn
 	flusher io.Writer
 
-	cache   etf.AtomCache
-	mapping *etf.AtomMapping
+	cache     etf.AtomCache
+	mapping   *etf.AtomMapping
+	fragments lib.Map[uint64, *fragmentedPacket]
+
+	// check and clean lost fragments
+	checkCleanPending  atomic.Bool
+	checkCleanTimer    *time.Timer
+	checkCleanTimeout  time.Duration // default is 5 seconds
+	checkCleanDeadline time.Duration // how long we wait for the next fragment of the certain sequenceID. Default is 30 seconds
 
 	terminated bool
 
 	wg sync.WaitGroup
+}
+
+type fragmentedPacket struct {
+	sync.Mutex
+
+	buffer           *lib.Buffer
+	disordered       *lib.Buffer
+	disorderedSlices map[uint64][]byte
+	fragmentID       uint64
+	lastUpdate       time.Time
 }
 
 //
@@ -366,7 +386,7 @@ func (c *connection) handleRecvQueue(q lib.QueueMPSC) {
 		}()
 	}
 
-	c.log.Trace("start handling the message queue")
+	c.log.Trace("start handling message queue")
 	for {
 		v, ok := q.Pop()
 		if ok == false {
@@ -406,7 +426,21 @@ func (c *connection) handleRecvQueue(q lib.QueueMPSC) {
 			continue
 		}
 
-		if buf.B[5] != protoDistMessage {
+		switch buf.B[5] {
+		case protoDistMessage:
+			break
+		case protoDistFragment1, protoDistFragmentN:
+			assembled, err := c.decodeFragment(buf.B[6:])
+			if err != nil {
+				c.log.Error("malformed DIST fragment: %s", err)
+				continue
+			}
+			if assembled == nil {
+				continue
+			}
+			buf = assembled
+
+		default:
 			c.log.Error("malformed DIST packet (unknown message type), ignored")
 			continue
 		}
@@ -724,4 +758,153 @@ func (c *connection) handleDistMessage(control etf.Term, payload etf.Term) (err 
 	}
 
 	return fmt.Errorf("unsupported control message %#v", control)
+}
+
+func (c *connection) decodeFragment(fragment []byte) (*lib.Buffer, error) {
+	var first bool
+	var err error
+
+	sequenceID := binary.BigEndian.Uint64(fragment[1:9])
+	fragmentID := binary.BigEndian.Uint64(fragment[9:17])
+	if fragmentID == 0 {
+		return nil, fmt.Errorf("fragmentID can't be 0")
+	}
+
+	switch fragment[0] {
+	case protoDistFragment1:
+		// TODO
+		// there might be a race condition: cached atom is introduced
+		// in this header, but was used in the following message which
+		// arrived to the other goroutine and handled there faster than
+		// we managed to process this fragment. needs to be fixed.
+		_, _, err = decodeDistHeaderAtomCache(fragment[17:], c.cache.In)
+		if err != nil {
+			return nil, err
+		}
+		first = true
+	case protoDistFragmentN:
+		break
+	default:
+		return nil, fmt.Errorf("unknown fragment ID (%d)", fragment[0])
+	}
+	fragment = fragment[17:]
+
+	packet, exist := c.fragments.Load(sequenceID)
+	if exist == false {
+		packet = &fragmentedPacket{
+			buffer:           lib.TakeBuffer(),
+			disordered:       lib.TakeBuffer(),
+			disorderedSlices: make(map[uint64][]byte),
+			lastUpdate:       time.Now(),
+		}
+
+		packet.buffer.AppendByte(protoDistMessage)
+		c.fragments.Store(sequenceID, packet)
+	}
+	packet.Lock()
+
+	// until we get the first item everything will be treated as disordered
+	if first {
+		packet.fragmentID = fragmentID + 1
+	}
+
+	if packet.fragmentID-fragmentID != 1 {
+		// got the next fragment. disordered
+		slice := packet.disordered.Extend(len(fragment))
+		copy(slice, fragment)
+		packet.disorderedSlices[fragmentID] = slice
+	} else {
+		// order is correct. just append
+		packet.buffer.Append(fragment)
+		packet.fragmentID = fragmentID
+	}
+
+	// check whether we have disordered slices and try
+	// to append them if it does fit
+
+	if packet.fragmentID > 0 && len(packet.disorderedSlices) > 0 {
+		for i := packet.fragmentID - 1; i > 0; i-- {
+			if slice, ok := packet.disorderedSlices[i]; ok {
+				packet.buffer.Append(slice)
+				delete(packet.disorderedSlices, i)
+				packet.fragmentID = i
+				continue
+			}
+			break
+		}
+	}
+
+	packet.lastUpdate = time.Now()
+	packet.Unlock()
+
+	if packet.fragmentID == 1 && len(packet.disorderedSlices) == 0 {
+		// it was the last fragment
+		c.fragments.Delete(sequenceID)
+		lib.ReleaseBuffer(packet.disordered)
+		return packet.buffer, nil
+	}
+
+	if c.checkCleanPending.CompareAndSwap(false, true) {
+		return nil, nil
+	}
+
+	if c.checkCleanTimer != nil {
+		c.checkCleanTimer.Reset(c.checkCleanTimeout)
+		return nil, nil
+	}
+
+	c.checkCleanTimer = time.AfterFunc(c.checkCleanTimeout, func() {
+		if c.fragments.Len() == 0 {
+			c.checkCleanPending.Store(false)
+			return
+		}
+
+		valid := time.Now().Add(-c.checkCleanDeadline)
+		c.fragments.RangeLock(func(k uint64, v *fragmentedPacket) bool {
+			if v.lastUpdate.Before(valid) {
+				// dropping  due to exceeded deadline
+				c.fragments.DeleteNoLock(sequenceID)
+			}
+
+			return true
+		})
+
+		if c.fragments.Len() == 0 {
+			c.checkCleanPending.Store(false)
+			return
+		}
+
+		c.checkCleanPending.Store(true)
+		c.checkCleanTimer.Reset(c.checkCleanTimeout)
+	})
+
+	return nil, nil
+}
+
+func (c *connection) send(message any) error {
+	packetBuffer := lib.TakeBuffer()
+	lenMessage, lenAtomCache, lenPacket := 0, 0, 0
+
+	// do reserve for the header 8K, should be enough
+	startDataPosition := 8192
+	packetBuffer.Allocate(startDataPosition)
+
+	cacheEnabled := c.peer_erlang_flags.IsEnabled(erlang.FlagDistHdrAtomCache)
+	fragmentationEnabled := c.peer_erlang_flags.IsEnabled(erlang.FlagFragments)
+
+	// atom cache of this sender
+	senderAtomCache := make(map[gen.Atom]etf.CacheItem)
+	// atom cache of this encoding
+	encodingAtomCache := etf.TakeEncodingAtomCache()
+	defer etf.ReleaseEncodingAtomCache(encodingAtomCache)
+	encodingOptions := etf.EncodeOptions{
+		EncodingAtomCache: encodingAtomCache,
+		AtomMapping:       dc.mapping,
+		NodeName:          dc.nodename,
+		PeerName:          dc.peername,
+	}
+
+	atomic.AddUint64(&c.messagesOut, 1)
+	atomic.AddUint64(&c.bytesOut, 1)
+	return nil
 }

@@ -6,6 +6,7 @@ import (
 
 	"ergo.services/ergo/gen"
 	"ergo.services/ergo/lib"
+	"ergo.services/proto/erlang"
 	"ergo.services/proto/erlang/etf"
 )
 
@@ -24,10 +25,10 @@ func Create() gen.NetworkProto {
 
 func (d *dist) NewConnection(core gen.Core, result gen.HandshakeResult, log gen.Log) (gen.Connection, error) {
 
-	// opts, ok := result.Custom.(handshake.ConnectionOptions)
-	// if ok == false {
-	// 	return nil, fmt.Errorf("HandshakeResult.Custom has unknown type")
-	// }
+	opts, ok := result.Custom.(erlang.ConnectionOptions)
+	if ok == false {
+		return nil, fmt.Errorf("unsupported type in gen.HandshakeResult.Costom")
+	}
 
 	if result.PeerCreation == 0 {
 		// seems it was Join handshake for the connection that was already terminated
@@ -42,6 +43,7 @@ func (d *dist) NewConnection(core gen.Core, result gen.HandshakeResult, log gen.
 		log:                 log,
 		node_flags:          result.NodeFlags,
 		node_maxmessagesize: result.NodeMaxMessageSize,
+		node_erlang_flags:   opts.NodeFlags,
 
 		handshakeVersion: result.HandshakeVersion,
 		protoVersion:     d.Version(),
@@ -51,6 +53,7 @@ func (d *dist) NewConnection(core gen.Core, result gen.HandshakeResult, log gen.
 		peer_flags:          result.PeerFlags,
 		peer_version:        result.PeerVersion,
 		peer_maxmessagesize: result.PeerMaxMessageSize,
+		peer_erlang_flags:   opts.PeerFlags,
 
 		// requests: make(map[gen.Ref]chan MessageResult),
 
