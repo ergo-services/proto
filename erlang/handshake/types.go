@@ -2,6 +2,7 @@ package handshake
 
 import (
 	"ergo.services/ergo/gen"
+	"runtime/debug"
 )
 
 const (
@@ -16,3 +17,14 @@ var (
 		License: gen.LicenseBSL1,
 	}
 )
+
+func init() {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, setting := range info.Settings {
+			if setting.Key == "vcs.revision" {
+				Version.Commit = setting.Value
+				break
+			}
+		}
+	}
+}

@@ -51,9 +51,11 @@ type connection struct {
 	conn    net.Conn
 	flusher io.Writer
 
-	cache     etf.AtomCache
-	mapping   *etf.AtomMapping
-	fragments lib.Map[uint64, *fragmentedPacket]
+	cache         etf.AtomCache
+	mapping       *etf.AtomMapping
+	fragments     lib.Map[uint64, *fragmentedPacket]
+	fragment_unit int
+	fragment_id   int64
 
 	// check and clean lost fragments
 	checkCleanPending  atomic.Bool
@@ -924,34 +926,42 @@ func (c *connection) send(control, payload any) error {
 	packetBuffer := lib.TakeBuffer()
 	lenMessage, lenAtomCache, lenPacket := 0, 0, 0
 
+	// HeaderAtomCache is encoding after the control/payload encoded.
+	// Reserve some space for the atom cache header.
+	reserveHeaderAtomCache := 8192
+	packetBuffer.Allocate(reserveHeaderAtomCache)
+
 	// do reserve for the header 8K, should be enough
-	startDataPosition := 8192
-	packetBuffer.Allocate(startDataPosition)
+	startDataPosition := reserveHeaderAtomCache
 
 	cacheEnabled := c.peer_erlang_flags.IsEnabled(erlang.FlagDistHdrAtomCache)
 	fragmentationEnabled := c.peer_erlang_flags.IsEnabled(erlang.FlagFragments)
 
+	// FIXME
 	// atom cache of this sender
 	senderAtomCache := make(map[gen.Atom]etf.CacheItem)
 	// atom cache of this encoding
 	encodingAtomCache := etf.TakeEncodingAtomCache()
 	defer etf.ReleaseEncodingAtomCache(encodingAtomCache)
+
 	encodingOptions := etf.EncodeOptions{
 		EncodingAtomCache: encodingAtomCache,
 		AtomMapping:       c.mapping,
-		NodeName:          c.nodename,
-		PeerName:          c.peername,
+		NodeName:          string(c.core.Name()),
+		PeerName:          string(c.peer),
+		FlagBigPidRef:     c.peer_erlang_flags.IsEnabled(erlang.FlagV4NC),
+		FlagBigCreation:   c.peer_erlang_flags.IsEnabled(erlang.FlagBigCreation),
 	}
 
 	// encode Control
 	if err := etf.Encode(control, packetBuffer, encodingOptions); err != nil {
 		lib.ReleaseBuffer(packetBuffer)
-		return fmt.Errorf("can not encode control message: %s", err)
+		return fmt.Errorf("unable to encode control message: %s", err)
 	}
 	if payload != nil {
 		if err := etf.Encode(payload, packetBuffer, encodingOptions); err != nil {
 			lib.ReleaseBuffer(packetBuffer)
-			return fmt.Errorf("can not encode payload message: %s", err)
+			return fmt.Errorf("unable to encode payload message: %s", err)
 		}
 	}
 	lenMessage = packetBuffer.Len() - reserveHeaderAtomCache
@@ -960,7 +970,7 @@ func (c *connection) send(control, payload any) error {
 	if cacheEnabled && encodingAtomCache.Len() > 0 {
 		atomCacheBuffer = lib.TakeBuffer()
 		atomCacheBuffer.Allocate(1024)
-		c.encodeDistHeaderAtomCache(atomCacheBuffer, encodingOptions.SenderAtomCache, encodingAtomCache)
+		encodeDistHeaderAtomCache(atomCacheBuffer, encodingOptions.SenderAtomCache, encodingAtomCache)
 
 		lenAtomCache = atomCacheBuffer.Len() - 1024
 		if lenAtomCache > reserveHeaderAtomCache-1024 {
@@ -983,7 +993,7 @@ func (c *connection) send(control, payload any) error {
 	for {
 		// 4 (packet len) + 1 (dist header: 131) + 1 (dist header: protoDistMessage[Z]) + lenAtomCache
 		lenPacket = 1 + 1 + lenAtomCache + lenMessage
-		if !fragmentationEnabled || lenMessage < options.FragmentationUnit {
+		if !fragmentationEnabled || lenMessage < c.fragment_unit {
 			// send as a single packet
 			startDataPosition -= 1
 			packetBuffer.B[startDataPosition] = protoDistMessage // 68
@@ -998,7 +1008,8 @@ func (c *connection) send(control, payload any) error {
 			if err != nil {
 				return err
 			}
-			atomic.AddUint64(&dc.stats.BytesOut, uint64(bytesOut))
+			atomic.AddUint64(&c.bytesOut, uint64(bytesOut))
+			atomic.AddUint64(&c.messagesOut, 1)
 			break
 		}
 
@@ -1006,11 +1017,11 @@ func (c *connection) send(control, payload any) error {
 
 		// https://erlang.org/doc/apps/erts/erl_ext_dist.html#distribution-header-for-fragmented-messages
 		// "The entire atom cache and control message has to be part of the starting fragment"
-		sequenceID := uint64(atomic.AddInt64(&dc.sequenceID, 1))
-		numFragments := lenMessage/options.FragmentationUnit + 1
+		sequenceID := uint64(atomic.AddInt64(&c.fragment_id, 1))
+		numFragments := lenMessage/c.fragment_unit + 1
 
 		// 1 (dist header: 131) + 1 (dist header: protoDistFragment) + 8 (sequenceID) + 8 (fragmentID) + ...
-		lenPacket = 1 + 1 + 8 + 8 + lenAtomCache + options.FragmentationUnit
+		lenPacket = 1 + 1 + 8 + 8 + lenAtomCache + c.fragment_unit
 
 		// 4 (packet len) + 1 (dist header: 131) + 1 (dist header: protoDistFragment[Z]) + 8 (sequenceID) + 8 (fragmentID)
 		startDataPosition -= 22
@@ -1026,14 +1037,14 @@ func (c *connection) send(control, payload any) error {
 		if err != nil {
 			return err
 		}
-		atomic.AddUint64(&dc.stats.BytesOut, uint64(bytesOut))
+		atomic.AddUint64(&c.bytesOut, uint64(bytesOut))
 		startDataPosition += 4 + lenPacket
 		numFragments--
 
 	nextFragment:
 
-		if len(packetBuffer.B[startDataPosition:]) > options.FragmentationUnit {
-			lenPacket = 1 + 1 + 8 + 8 + options.FragmentationUnit
+		if len(packetBuffer.B[startDataPosition:]) > c.fragment_unit {
+			lenPacket = 1 + 1 + 8 + 8 + c.fragment_unit
 			// reuse the previous 22 bytes for the next frame header
 			startDataPosition -= 22
 
@@ -1050,17 +1061,18 @@ func (c *connection) send(control, payload any) error {
 		// send fragment
 		binary.BigEndian.PutUint32(packetBuffer.B[startDataPosition:], uint32(lenPacket))
 		packetBuffer.B[startDataPosition+4] = protoDist // 131
-		bytesOut, err := c.flusher.Write(packetBuffer.B[startDataPosition : startDataPosition+4+lenPacket])
+		bytesOut, err = c.flusher.Write(packetBuffer.B[startDataPosition : startDataPosition+4+lenPacket])
 		if err != nil {
 			return err
 		}
-		atomic.AddUint64(&c.BytesOut, uint64(bytesOut))
+		atomic.AddUint64(&c.bytesOut, uint64(bytesOut))
 		startDataPosition += 4 + lenPacket
 		numFragments--
 		if numFragments > 0 {
 			goto nextFragment
 		}
 
+		atomic.AddUint64(&c.messagesOut, 1)
 		// done
 		break
 	}
@@ -1087,7 +1099,5 @@ func (c *connection) send(control, payload any) error {
 	}
 	encodingOptions.AtomCache.RUnlock()
 
-	atomic.AddUint64(&c.messagesOut, 1)
-	atomic.AddUint64(&c.bytesOut, 1)
 	return nil
 }

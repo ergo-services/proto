@@ -117,7 +117,7 @@ func encodeDistHeaderAtomCache(b *lib.Buffer,
 		idxInternal := byte(encodingAtomCache.L[i].ID & 255) // InternalSegmentIndex
 
 		cachedItem := senderAtomCache[encodingAtomCache.L[i].Name]
-		if !cachedItem.Encoded {
+		if cachedItem.Encoded == false {
 			idxReference |= 8 // set NewCacheEntryFlag
 		}
 

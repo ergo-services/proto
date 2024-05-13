@@ -1,6 +1,7 @@
 package dist
 
 import (
+	"runtime/debug"
 	"time"
 
 	"ergo.services/ergo/gen"
@@ -49,6 +50,8 @@ const (
 	protoDistMessage   = 68
 	protoDistFragment1 = 69
 	protoDistFragmentN = 70
+
+	defaultFragmentationUnit = 65000
 )
 
 var (
@@ -58,3 +61,14 @@ var (
 		License: gen.LicenseMIT,
 	}
 )
+
+func init() {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, setting := range info.Settings {
+			if setting.Key == "vcs.revision" {
+				Version.Commit = setting.Value
+				break
+			}
+		}
+	}
+}

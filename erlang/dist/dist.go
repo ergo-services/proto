@@ -14,11 +14,21 @@ import (
 // "ergo.services/proto/erlang/handshake"
 
 type dist struct {
-	core gen.Core
+	core               gen.Core
+	fragmentation_unit int
 }
 
-func Create() gen.NetworkProto {
-	return &dist{}
+type Options struct {
+	FragmentationUnit int
+}
+
+func Create(options Options) gen.NetworkProto {
+	if options.FragmentationUnit < defaultFragmentationUnit {
+		options.FragmentationUnit = defaultFragmentationUnit
+	}
+	return &dist{
+		fragmentation_unit: options.FragmentationUnit,
+	}
 }
 
 // gen.NetworkProto implementation
