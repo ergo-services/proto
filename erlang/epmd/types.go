@@ -1,6 +1,8 @@
 package epmd
 
 import (
+	"ergo.services/ergo/gen"
+	"runtime/debug"
 	"time"
 )
 
@@ -19,3 +21,22 @@ const (
 	epmdPortResp      = 119
 	epmdNamesReq      = 110
 )
+
+var (
+	Version = gen.Version{
+		Name:    registrarName,
+		Release: registrarRelease,
+		License: gen.LicenseBSL1,
+	}
+)
+
+func init() {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, setting := range info.Settings {
+			if setting.Key == "vcs.revision" {
+				Version.Commit = setting.Value
+				break
+			}
+		}
+	}
+}

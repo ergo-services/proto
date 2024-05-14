@@ -211,11 +211,7 @@ func (c *client) Terminate() {
 }
 
 func (c *client) Version() gen.Version {
-	return gen.Version{
-		Name:    registrarName,
-		Release: registrarRelease,
-		License: gen.LicenseMIT,
-	}
+	return Version
 }
 
 func (c *client) tryRegister() (net.Conn, error) {
