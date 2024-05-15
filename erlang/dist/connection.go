@@ -926,31 +926,18 @@ func (c *connection) send(control, payload any) error {
 	packetBuffer := lib.TakeBuffer()
 	lenMessage, lenAtomCache, lenPacket := 0, 0, 0
 
-	// HeaderAtomCache is encoding after the control/payload encoded.
-	// Reserve some space for the atom cache header.
-	reserveHeaderAtomCache := 8192
-	packetBuffer.Allocate(reserveHeaderAtomCache)
+	reserve := 1024
+	packetBuffer.Allocate(reserve)
+	startDataPosition := reserve
 
-	// do reserve for the header 8K, should be enough
-	startDataPosition := reserveHeaderAtomCache
-
-	cacheEnabled := c.peer_erlang_flags.IsEnabled(erlang.FlagDistHdrAtomCache)
 	fragmentationEnabled := c.peer_erlang_flags.IsEnabled(erlang.FlagFragments)
 
-	// FIXME
-	// atom cache of this sender
-	senderAtomCache := make(map[gen.Atom]etf.CacheItem)
-	// atom cache of this encoding
-	encodingAtomCache := etf.TakeEncodingAtomCache()
-	defer etf.ReleaseEncodingAtomCache(encodingAtomCache)
-
 	encodingOptions := etf.EncodeOptions{
-		EncodingAtomCache: encodingAtomCache,
-		AtomMapping:       c.mapping,
-		NodeName:          string(c.core.Name()),
-		PeerName:          string(c.peer),
-		FlagBigPidRef:     c.peer_erlang_flags.IsEnabled(erlang.FlagV4NC),
-		FlagBigCreation:   c.peer_erlang_flags.IsEnabled(erlang.FlagBigCreation),
+		AtomMapping:     c.mapping,
+		NodeName:        string(c.core.Name()),
+		PeerName:        string(c.peer),
+		FlagBigPidRef:   c.peer_erlang_flags.IsEnabled(erlang.FlagV4NC),
+		FlagBigCreation: c.peer_erlang_flags.IsEnabled(erlang.FlagBigCreation),
 	}
 
 	// encode Control
@@ -964,31 +951,11 @@ func (c *connection) send(control, payload any) error {
 			return fmt.Errorf("unable to encode payload message: %s", err)
 		}
 	}
-	lenMessage = packetBuffer.Len() - reserveHeaderAtomCache
 
-	// encode Header Atom Cache if its enabled
-	if cacheEnabled && encodingAtomCache.Len() > 0 {
-		atomCacheBuffer = lib.TakeBuffer()
-		atomCacheBuffer.Allocate(1024)
-		encodeDistHeaderAtomCache(atomCacheBuffer, encodingOptions.SenderAtomCache, encodingAtomCache)
-
-		lenAtomCache = atomCacheBuffer.Len() - 1024
-		if lenAtomCache > reserveHeaderAtomCache-1024 {
-			// we got huge atom cache
-			atomCacheBuffer.Append(packetBuffer.B[startDataPosition:])
-			startDataPosition = 1024
-			lib.ReleaseBuffer(packetBuffer)
-			packetBuffer = atomCacheBuffer
-		} else {
-			startDataPosition -= lenAtomCache
-			copy(packetBuffer.B[startDataPosition:], atomCacheBuffer.B[1024:])
-			lib.ReleaseBuffer(atomCacheBuffer)
-		}
-	} else {
-		lenAtomCache = 1
-		startDataPosition -= lenAtomCache
-		packetBuffer.B[startDataPosition] = byte(0)
-	}
+	lenMessage = packetBuffer.Len() - reserve
+	lenAtomCache = 1
+	startDataPosition -= lenAtomCache
+	packetBuffer.B[startDataPosition] = byte(0)
 
 	for {
 		// 4 (packet len) + 1 (dist header: 131) + 1 (dist header: protoDistMessage[Z]) + lenAtomCache
@@ -1078,26 +1045,5 @@ func (c *connection) send(control, payload any) error {
 	}
 
 	lib.ReleaseBuffer(packetBuffer)
-
-	if cacheEnabled == false {
-		return nil
-	}
-
-	// get updates from the connection AtomCache and update the sender's cache (senderAtomCache)
-	lastAddedAtom, lastAddedID := encodingOptions.AtomCache.LastAdded()
-	if lastAddedID < 0 {
-		return nil
-	}
-	if _, exist := encodingOptions.SenderAtomCache[lastAddedAtom]; exist {
-		return nil
-	}
-
-	encodingOptions.AtomCache.RLock()
-	for _, a := range encodingOptions.AtomCache.ListSince(lastAddedID) {
-		encodingOptions.SenderAtomCache[a] = etf.CacheItem{ID: lastAddedID, Name: a, Encoded: false}
-		lastAddedID++
-	}
-	encodingOptions.AtomCache.RUnlock()
-
 	return nil
 }

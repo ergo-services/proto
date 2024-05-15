@@ -126,7 +126,13 @@ func DefaultFlags() []erlang.Flag {
 		erlang.FlagMapTag,
 		erlang.FlagHandshake23,
 		erlang.FlagUnlinkID,
-		erlang.FlagDistHdrAtomCache,
+
+		// Caching atoms doesn't provide so much perf improvements
+		// but makes logic overcomplicated. Especially with enabled
+		// fragmentation feature. Maybe will get back in the next releases
+		//
+		// erlang.FlagDistHdrAtomCache,
+
 		erlang.FlagFragments,
 		erlang.FlagBigCreation,
 		erlang.FlagAlias,
