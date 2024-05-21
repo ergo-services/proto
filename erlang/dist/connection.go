@@ -78,6 +78,11 @@ type fragmentedPacket struct {
 	lastUpdate       time.Time
 }
 
+var (
+	keepAlivePeriod = 15 * time.Second
+	keepAlivePacket = []byte{0, 0, 0, 0}
+)
+
 //
 // gen.RemoteNode implementation
 //
@@ -356,7 +361,7 @@ func (c *connection) Join(conn net.Conn, id string, dial gen.NetworkDial, tail [
 	}
 
 	c.conn = conn
-	c.flusher = lib.NewFlusher(conn)
+	c.flusher = lib.NewFlusherWithKeepAlive(conn, keepAlivePacket, keepAlivePeriod)
 
 	c.wg.Add(1)
 	go func() {
@@ -505,20 +510,19 @@ func (c *connection) handleRecvQueue(q lib.QueueMPSC) {
 			continue
 		}
 
-		if len(packet) == 0 {
-			// TODO control only
-		}
+		if len(packet) > 0 {
 
-		// decode payload message
-		payload, packet, err = etf.Decode(packet, cache, decodeOptions)
-		if err != nil {
-			c.log.Error("unable to decode DIST:ETF payload (%s), ignored", err)
-			continue
-		}
+			// decode payload message
+			payload, packet, err = etf.Decode(packet, cache, decodeOptions)
+			if err != nil {
+				c.log.Error("unable to decode DIST:ETF payload (%s), ignored", err)
+				continue
+			}
 
-		if len(packet) != 0 {
-			c.log.Error("received DIST packet with extra %d byte(s), ignored", len(packet))
-			continue
+			if len(packet) != 0 {
+				c.log.Error("received DIST packet with extra %d byte(s), ignored", len(packet))
+				continue
+			}
 		}
 
 		atomic.AddUint64(&c.messagesIn, 1)
@@ -585,9 +589,9 @@ func (c *connection) read(conn net.Conn, buf *lib.Buffer) (*lib.Buffer, error) {
 		}
 
 		tail := lib.TakeBuffer()
-		tail.Append(buf.B[l:total])
+		tail.Append(buf.B[l+4 : total])
 
-		buf.B = buf.B[:l]
+		buf.B = buf.B[:l+4]
 
 		return tail, nil
 	}

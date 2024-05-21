@@ -116,8 +116,12 @@ func DefaultFlags() []erlang.Flag {
 		erlang.FlagDistMonitorName,
 		erlang.FlagExtendedPidsPorts,
 		erlang.FlagExtendedReferences,
-		erlang.FlagAtomCache,
-		erlang.FlagHiddenAtomCache,
+
+		// Obsolete (see https://www.erlang.org/doc/apps/erts/erl_dist_protocol#distribution-flags)
+		//
+		// erlang.FlagAtomCache,
+		// erlang.FlagHiddenAtomCache,
+
 		erlang.FlagFunTags,
 		erlang.FlagNewFunTags,
 		erlang.FlagExportPtrTag,
@@ -128,8 +132,9 @@ func DefaultFlags() []erlang.Flag {
 		erlang.FlagUnlinkID,
 
 		// Caching atoms doesn't provide so much perf improvements
-		// but makes logic overcomplicated. Especially with enabled
-		// fragmentation feature. Maybe will get back in the next releases
+		// but makes encoding/decoding logic overcomplicated.
+		// Especially with enabled fragmentation feature.
+		// Maybe will get back in the next releases
 		//
 		// erlang.FlagDistHdrAtomCache,
 

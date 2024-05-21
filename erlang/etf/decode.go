@@ -120,7 +120,6 @@ func Decode(packet []byte, cache []gen.Atom, options DecodeOptions) (retTerm Ter
 		//  save the state in stackElement and push it to the stack (basically,
 		//  we just append the new item to the linked list)
 		//
-
 		switch t {
 		case ettAtomUTF8, ettAtom:
 			if len(packet) < 2 {
