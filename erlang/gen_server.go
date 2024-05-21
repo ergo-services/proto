@@ -7,6 +7,7 @@ import (
 
 	"ergo.services/ergo/gen"
 	"ergo.services/ergo/lib"
+	"ergo.services/proto/erlang/etf"
 )
 
 // GenServerBehavior interface
@@ -144,7 +145,17 @@ func (gs *GenServer) ProcessRun() (rr error) {
 		case gen.MailboxMessageTypeRegular:
 			var reason error
 			// TODO check if is a cast message and invoke HandleCast for that
-			reason = gs.behavior.HandleInfo(message.Message)
+			switch m := message.Message.(type) {
+			case etf.Tuple:
+				if len(m) == 2 && m[0] == gen.Atom("$gen_cast") {
+					reason = gs.behavior.HandleCast(m[1])
+					break
+				}
+				reason = gs.behavior.HandleInfo(message.Message)
+
+			default:
+				reason = gs.behavior.HandleInfo(message.Message)
+			}
 			if reason != nil {
 				return reason
 			}

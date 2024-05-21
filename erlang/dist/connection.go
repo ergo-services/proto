@@ -532,7 +532,6 @@ func (c *connection) handleRecvQueue(q lib.QueueMPSC) {
 }
 
 func (c *connection) read(conn net.Conn, buf *lib.Buffer) (*lib.Buffer, error) {
-	total := buf.Len()
 	expect := 4
 	for {
 		if buf.Len() < expect {
@@ -557,7 +556,6 @@ func (c *connection) read(conn net.Conn, buf *lib.Buffer) (*lib.Buffer, error) {
 				return nil, e
 			}
 
-			total += n
 			// check if we should get more data
 			continue
 		}
@@ -569,6 +567,7 @@ func (c *connection) read(conn net.Conn, buf *lib.Buffer) (*lib.Buffer, error) {
 		}
 
 		if l == 0 {
+			c.log.Trace("got DIST keepalive (packet len: %d)", buf.Len())
 			// it was keepalive message
 			expect = 4
 			if buf.Len() == 4 {
@@ -579,17 +578,15 @@ func (c *connection) read(conn net.Conn, buf *lib.Buffer) (*lib.Buffer, error) {
 			continue
 		}
 
-		if lib.Trace() {
-			c.log.Trace("...recv DIST buf.Len: %d, packet %d (expect: %d)", buf.Len(), l, expect)
-		}
+		c.log.Trace("received DIST packet: buf.Len %d, packet %d, expect %d", buf.Len(), l, expect)
 
-		if buf.Len() < l {
-			expect = l
+		if buf.Len() < l+4 {
+			expect = l + 4
 			continue
 		}
 
 		tail := lib.TakeBuffer()
-		tail.Append(buf.B[l+4 : total])
+		tail.Append(buf.B[l+4:])
 
 		buf.B = buf.B[:l+4]
 
@@ -618,7 +615,7 @@ func (c *connection) handleDistMessage(control etf.Term, payload etf.Term) (err 
 			case distProtoREG_SEND:
 				// {6, FromPid, Unused, ToName}
 				to := gen.ProcessID{
-					Node: c.peer,
+					Node: c.core.Name(),
 					Name: t.Element(4).(gen.Atom),
 				}
 				options := gen.MessageOptions{}
