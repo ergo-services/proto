@@ -40,11 +40,6 @@ func (d *dist) NewConnection(core gen.Core, result gen.HandshakeResult, log gen.
 		return nil, fmt.Errorf("unsupported type in gen.HandshakeResult.Costom")
 	}
 
-	if result.PeerCreation == 0 {
-		// seems it was Join handshake for the connection that was already terminated
-		return nil, gen.ErrNotAllowed
-	}
-
 	log.Trace("create new connection with %s", result.Peer)
 	conn := &connection{
 		id:                  result.ConnectionID,
@@ -69,6 +64,8 @@ func (d *dist) NewConnection(core gen.Core, result gen.HandshakeResult, log gen.
 
 		cache:   etf.NewAtomCache(),
 		mapping: etf.NewAtomMapping(),
+
+		fragment_unit: defaultFragmentationUnit,
 	}
 
 	// init recv queues. create 4 recv queues per connection

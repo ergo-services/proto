@@ -468,7 +468,7 @@ func (c *connection) handleRecvQueue(q lib.QueueMPSC) {
 		}
 
 		if buf.B[4] != protoDist {
-			c.log.Error("malformed DIST packet (unknown proto), ignored")
+			c.log.Error("malformed DIST packet (unknown proto: %#v), ignored", buf.B)
 			continue
 		}
 
@@ -567,7 +567,6 @@ func (c *connection) read(conn net.Conn, buf *lib.Buffer) (*lib.Buffer, error) {
 		}
 
 		if l == 0 {
-			c.log.Trace("got DIST keepalive (packet len: %d)", buf.Len())
 			// it was keepalive message
 			expect = 4
 			if buf.Len() == 4 {
@@ -618,8 +617,9 @@ func (c *connection) handleDistMessage(control etf.Term, payload etf.Term) (err 
 					Node: c.core.Name(),
 					Name: t.Element(4).(gen.Atom),
 				}
+				from := t.Element(2).(gen.PID)
 				options := gen.MessageOptions{}
-				c.core.RouteSendProcessID(t.Element(2).(gen.PID), to, options, payload)
+				c.core.RouteSendProcessID(from, to, options, payload)
 				return nil
 
 			case distProtoSEND:
@@ -630,8 +630,28 @@ func (c *connection) handleDistMessage(control etf.Term, payload etf.Term) (err 
 					Creation: c.peer_creation,
 					ID:       1,
 				}
+				to := t.Element(3).(gen.PID)
 				options := gen.MessageOptions{}
-				c.core.RouteSendPID(from, t.Element(3).(gen.PID), options, payload)
+
+				// check if this message is reply for the call request:
+				// etf.Tuple{gen.Ref, reply}
+				if p, ok := payload.(etf.Tuple); ok && len(p) == 2 {
+					if ref, ok := p.Element(1).(gen.Ref); ok {
+						reply := p.Element(2)
+						c.core.RouteSendResponse(from, to, ref, options, reply)
+						return nil
+					}
+				}
+
+				c.core.RouteSendPID(from, to, options, payload)
+				return nil
+
+			case distProtoALIAS_SEND:
+				// {33, FromPid, Alias}
+				from := t.Element(2).(gen.PID)
+				alias := gen.Alias(t.Element(3).(gen.Ref))
+				options := gen.MessageOptions{}
+				c.core.RouteSendAlias(from, alias, options, payload)
 				return nil
 
 			case distProtoLINK:
@@ -732,13 +752,6 @@ func (c *connection) handleDistMessage(control etf.Term, payload etf.Term) (err 
 				return nil
 			case distProtoPAYLOAD_MONITOR_P_EXIT:
 				// not supported. ignored
-				return nil
-
-			case distProtoALIAS_SEND:
-				// {33, FromPid, Alias}
-				alias := gen.Alias(t.Element(3).(gen.Ref))
-				options := gen.MessageOptions{}
-				c.core.RouteSendAlias(t.Element(2).(gen.PID), alias, options, payload)
 				return nil
 
 			case distProtoSPAWN_REQUEST:
@@ -959,7 +972,7 @@ func (c *connection) send(control, payload any) error {
 	packetBuffer.B[startDataPosition] = byte(0)
 
 	for {
-		// 4 (packet len) + 1 (dist header: 131) + 1 (dist header: protoDistMessage[Z]) + lenAtomCache
+		// 4 (packet len) + 1 (dist header: 131) + 1 (dist header: protoDistMessage) + lenAtomCache
 		lenPacket = 1 + 1 + lenAtomCache + lenMessage
 		if !fragmentationEnabled || lenMessage < c.fragment_unit {
 			// send as a single packet

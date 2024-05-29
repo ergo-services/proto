@@ -136,7 +136,7 @@ func DefaultFlags() []erlang.Flag {
 		// Especially with enabled fragmentation feature.
 		// Maybe will get back in the next releases
 		//
-		// erlang.FlagDistHdrAtomCache,
+		erlang.FlagDistHdrAtomCache,
 
 		erlang.FlagFragments,
 		erlang.FlagBigCreation,

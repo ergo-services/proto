@@ -144,21 +144,105 @@ func (gs *GenServer) ProcessRun() (rr error) {
 		switch message.Type {
 		case gen.MailboxMessageTypeRegular:
 			var reason error
-			// TODO check if is a cast message and invoke HandleCast for that
-			switch m := message.Message.(type) {
-			case etf.Tuple:
-				if len(m) == 2 && m[0] == gen.Atom("$gen_cast") {
-					reason = gs.behavior.HandleCast(m[1])
-					break
+			tuple, ok := message.Message.(etf.Tuple)
+			if ok == false {
+				reason = gs.behavior.HandleInfo(message.Message)
+				if reason != nil {
+					return reason
 				}
-				reason = gs.behavior.HandleInfo(message.Message)
-
-			default:
-				reason = gs.behavior.HandleInfo(message.Message)
+				continue
 			}
+
+			if len(tuple) == 2 && tuple.Element(1) == gen.Atom("$gen_cast") {
+				reason = gs.behavior.HandleCast(tuple.Element(2))
+				if reason != nil {
+					return reason
+				}
+				continue
+			}
+
+			if len(tuple) == 3 && tuple.Element(1) == gen.Atom("$gen_call") {
+				// Due to lack of normal sync request/response in the DIST
+				// proto we have to do all this magic below...
+				tupleFrom, ok := tuple.Element(2).(etf.Tuple)
+				if ok == false || len(tupleFrom) != 2 {
+					reason = gs.behavior.HandleInfo(message.Message)
+					if reason != nil {
+						return reason
+					}
+					continue
+				}
+
+				from, ok := tupleFrom.Element(1).(gen.PID)
+				if ok == false {
+					reason = gs.behavior.HandleInfo(message.Message)
+					if reason != nil {
+						return reason
+					}
+					continue
+				}
+
+				if ref, ok := tupleFrom.Element(2).(gen.Ref); ok {
+					request := tuple.Element(3)
+					result, reason := gs.HandleCall(from, ref, request)
+					reply := etf.Tuple{ref, result}
+					if reason != nil {
+						// if reason is "normal" and we got response - send it before termination
+						if reason == gen.TerminateReasonNormal && result != nil {
+							gs.SendPID(message.From, reply)
+						}
+						return reason
+					}
+
+					if result == nil {
+						// async handling of sync request. response could be sent
+						// later, even by the other process
+						continue
+					}
+
+					gs.SendPID(message.From, reply)
+
+				}
+
+				// I have no words how stupid Erlang's approach to get
+				// rid of 'phantom'-messages (late replies).
+				// But it is what it is.
+				// Check if it was request with "alias"
+				// etf.List[gen.Atom("alias"), etf.Ref]
+				if list, ok := tupleFrom.Element(2).(etf.List); ok && len(list) == 2 {
+					if ref, ok := list.Element(2).(gen.Ref); ok &&
+						list.Element(1) == gen.Atom("alias") {
+						//
+						request := tuple.Element(3)
+						result, reason := gs.HandleCall(from, ref, request)
+						tag := etf.ListImproper{gen.Atom("alias"), ref}
+						reply := etf.Tuple{tag, result}
+						if reason != nil {
+							// if reason is "normal" and we got response - send it before termination
+							if reason == gen.TerminateReasonNormal && result != nil {
+								gs.SendAlias(gen.Alias(ref), reply)
+							}
+							return reason
+						}
+
+						if result == nil {
+							// async handling of sync request. response could be sent
+							// later, even by the other process
+							continue
+						}
+
+						gs.SendAlias(gen.Alias(ref), reply)
+						continue
+					}
+				}
+			}
+
+			// handle as a regular message
+			reason = gs.behavior.HandleInfo(message.Message)
 			if reason != nil {
 				return reason
 			}
+			continue
 
 		case gen.MailboxMessageTypeRequest:
 			var reason error
@@ -252,7 +336,7 @@ func (gs *GenServer) Init(args ...any) error {
 
 func (gs *GenServer) HandleCall(from gen.PID, ref gen.Ref, request any) (any, error) {
 	gs.Log().Warning("GenServer.HandleCall: unhandled request from %s", from)
-	return nil, nil
+	return gen.Atom("unhandled"), nil
 }
 
 func (gs *GenServer) HandleInfo(message any) error {

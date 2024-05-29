@@ -108,9 +108,8 @@ func (h *handshake) Start(node gen.NodeHandshake, conn net.Conn, options gen.Han
 			return result, nil
 
 		case 's':
-			fmt.Println("sss")
 			if string(message[1:3]) != "ok" {
-				return result, fmt.Errorf("DIST handshake status != ok")
+				return result, fmt.Errorf("DIST handshake status != ok (%#v)", message[1:])
 			}
 
 			await = []byte{'n', 'N'}
@@ -252,7 +251,7 @@ func (h *handshake) sendChallengeReply(conn net.Conn, peerChallenge uint32, chal
 		return nil
 	}
 
-	buf := make([]byte, dataLength+4)
+	buf := make([]byte, dataLength+2)
 	binary.BigEndian.PutUint16(buf[0:2], uint16(dataLength))
 	buf[2] = 'r'
 	binary.BigEndian.PutUint32(buf[3:7], challenge) // uint32
