@@ -1065,7 +1065,10 @@ func Decode(packet []byte, cache []gen.Atom, options DecodeOptions) (retTerm Ter
 					} else {
 						id = binary.BigEndian.Uint32(packet[:4])
 					}
-					ref.ID[i] = id
+					fmt.Printf("REF ID %d = %d (%d)\n", i, id, ref.Creation)
+					if i < 3 {
+						ref.ID[i] = id
+					}
 					packet = packet[4:]
 				}
 

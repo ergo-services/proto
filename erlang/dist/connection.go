@@ -397,14 +397,45 @@ func (c *connection) serve(tail []byte) {
 			return
 		}
 
+		if buf.Len() < 5 {
+			c.log.Error("malformed DIST packet (too small), ignored")
+			c.conn.Close()
+			return
+		}
+
+		if buf.B[4] != protoDist {
+			c.log.Error("malformed DIST packet (unknown proto: %#v), ignored", buf.B)
+			c.conn.Close()
+			return
+		}
+
+		switch buf.B[5] {
+		case protoDistMessage:
+			if _, _, err := decodeDistHeaderAtomCache(buf.B[6:], c.cache.In); err != nil {
+				c.log.Error("malformed DIST message: %s", err)
+				c.conn.Close()
+				return
+			}
+		case protoDistFragment1:
+			if _, _, err := decodeDistHeaderAtomCache(buf.B[23:], c.cache.In); err != nil {
+				c.log.Error("malformed DIST fragment message: %s", err)
+				c.conn.Close()
+				return
+			}
+
+		case protoDistFragmentN:
+			break
+
+		default:
+			c.log.Error("malformed DIST packet (unknown message type), ignored")
+			continue
+		}
+
 		recvN++
 
 		atomic.AddUint64(&c.bytesIn, uint64(buf.Len()))
 		// send 'buf' to the decoding queue
 		qN := recvN % recvNQ
-		if order := int(buf.B[6]); order > 0 {
-			qN = order % recvNQ
-		}
 		c.log.Trace("received DIST message. put it to pool[%d] of %s...", qN, c.conn.RemoteAddr())
 		queue := c.recvQueues[qN]
 		atomic.AddInt64(&c.allocatedInQueues, int64(buf.Cap()))
@@ -460,16 +491,6 @@ func (c *connection) handleRecvQueue(q lib.QueueMPSC) {
 		// check if connection has been terminated
 		if c.terminated {
 			return
-		}
-
-		if buf.Len() < 5 {
-			c.log.Error("malformed DIST packet (too small), ignored")
-			continue
-		}
-
-		if buf.B[4] != protoDist {
-			c.log.Error("malformed DIST packet (unknown proto: %#v), ignored", buf.B)
-			continue
 		}
 
 		switch buf.B[5] {
@@ -817,7 +838,6 @@ func (c *connection) handleDistMessage(control etf.Term, payload etf.Term) (err 
 
 func (c *connection) decodeFragment(fragment []byte) (*lib.Buffer, error) {
 	var first bool
-	var err error
 
 	sequenceID := binary.BigEndian.Uint64(fragment[1:9])
 	fragmentID := binary.BigEndian.Uint64(fragment[9:17])
@@ -825,23 +845,7 @@ func (c *connection) decodeFragment(fragment []byte) (*lib.Buffer, error) {
 		return nil, fmt.Errorf("fragmentID can't be 0")
 	}
 
-	switch fragment[0] {
-	case protoDistFragment1:
-		// TODO
-		// there might be a race condition: cached atom is introduced
-		// in this header, but was used in the following message which
-		// arrived to the other goroutine and handled there faster than
-		// we managed to process this fragment. needs to be fixed.
-		_, _, err = decodeDistHeaderAtomCache(fragment[17:], c.cache.In)
-		if err != nil {
-			return nil, err
-		}
-		first = true
-	case protoDistFragmentN:
-		break
-	default:
-		return nil, fmt.Errorf("unknown fragment ID (%d)", fragment[0])
-	}
+	first = fragment[0] == protoDistFragment1
 	fragment = fragment[17:]
 
 	packet, exist := c.fragments.Load(sequenceID)
