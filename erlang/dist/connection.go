@@ -218,7 +218,18 @@ func (c *connection) SendExit(from gen.PID, to gen.PID, reason error) error {
 }
 
 func (c *connection) SendResponse(from gen.PID, to gen.PID, ref gen.Ref, options gen.MessageOptions, response any) error {
-	return gen.ErrUnsupported
+	// check the alias flag (see gen_server.go)
+	useAlias := ref.ID[2]&(1<<3) == 1<<3
+	if useAlias {
+		// send reply using ref as an alias
+		tag := etf.ListImproper{gen.Atom("alias"), ref}
+		message := etf.Tuple{tag, response}
+		alias := gen.Alias(ref)
+		return c.SendAlias(from, alias, gen.MessageOptions{}, message)
+	}
+	// send reply as a regular message
+	message := etf.Tuple{ref, response}
+	return c.SendPID(from, to, gen.MessageOptions{}, message)
 }
 
 func (c *connection) SendTerminatePID(target gen.PID, reason error) error {

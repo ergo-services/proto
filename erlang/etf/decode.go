@@ -985,52 +985,10 @@ func Decode(packet []byte, cache []gen.Atom, options DecodeOptions) (retTerm Ter
 				packet = packet[12:]
 				stack.term = pid
 				stack.i++
-
 			case ettNewRef:
-				var id uint32
-				name, ok := term.(gen.Atom)
-				if !ok {
-					return nil, nil, errMalformedRef
-				}
-
-				l := stack.tmp.(uint16)
-				if l > 5 {
-					return nil, nil, errMalformedRef
-				}
-				if l > 3 && !options.FlagBigPidRef {
-					return nil, nil, errMalformedRef
-				}
-				stack.tmp = nil
-				expectedLength := int(1 + l*4)
-
-				if len(packet) < expectedLength {
-					return nil, nil, errMalformedRef
-				}
-
-				ref := gen.Ref{
-					Node:     name,
-					Creation: int64(packet[0]),
-				}
-				packet = packet[1:]
-
-				for i := 0; i < int(l); i++ {
-					// In the first word (4 bytes) of ID, only 18 bits
-					// are significant, the rest must be 0.
-					if i == 0 {
-						// 2**18 - 1 = 262143
-						id = binary.BigEndian.Uint32(packet[:4]) & 262143
-					} else {
-						id = binary.BigEndian.Uint32(packet[:4])
-					}
-					ref.ID[i] = id
-					packet = packet[4:]
-				}
-
-				stack.term = ref
-				stack.i++
+				panic("TODO NewRef decode")
 
 			case ettNewerRef:
-				var id uint32
 				name, ok := term.(gen.Atom)
 				if !ok {
 					return nil, nil, errMalformedRef
@@ -1040,9 +998,7 @@ func Decode(packet []byte, cache []gen.Atom, options DecodeOptions) (retTerm Ter
 				if l > 5 {
 					return nil, nil, errMalformedRef
 				}
-				if l > 3 && !options.FlagBigPidRef {
-					return nil, nil, errMalformedRef
-				}
+
 				stack.tmp = nil
 				expectedLength := int(4 + l*4)
 
@@ -1056,20 +1012,24 @@ func Decode(packet []byte, cache []gen.Atom, options DecodeOptions) (retTerm Ter
 				}
 				packet = packet[4:]
 
+				// 32 (id0) + 32 (id1), 32 (id2) + 32 (id3), 32 (id4) + l
+				// 64 ID[0]             64 ID[1]             64 ID[2]
 				for i := 0; i < int(l); i++ {
-					// In the first word (4 bytes) of ID, only 18 bits
-					// are significant, the rest must be 0.
-					if i == 0 {
-						// 2**18 - 1 = 262143
-						id = binary.BigEndian.Uint32(packet[:4]) & 262143
+					id := uint64(binary.BigEndian.Uint32(packet[:4]))
+					if i%2 == 0 {
+						ref.ID[i/2] = id << 32
 					} else {
-						id = binary.BigEndian.Uint32(packet[:4])
-					}
-					fmt.Printf("REF ID %d = %d (%d)\n", i, id, ref.Creation)
-					if i < 3 {
-						ref.ID[i] = id
+						ref.ID[i/2] |= id
 					}
 					packet = packet[4:]
+				}
+				// check ergo-integrity flag
+				if ref.ID[0]>>63 == 0 {
+					// not an ergo ref use ID[2] to keep the length
+					ref.ID[2] |= uint64(l)
+				} else {
+					// clean up ergo-integrity flag
+					ref.ID[0] &= ^(uint64(1) << 63)
 				}
 
 				stack.term = ref

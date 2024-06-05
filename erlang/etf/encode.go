@@ -173,32 +173,7 @@ func Encode(term Term, b *lib.Buffer, options EncodeOptions) (retErr error) {
 				continue
 
 			case ettNewRef:
-				r := stack.term.(gen.Ref)
-				if stack.i == 0 {
-					term = stack.term.(gen.Ref).Node
-					break
-				}
-
-				lenID := 3
-				buf := b.Extend(1 + lenID*4)
-				// Only one byte long and only two bits are significant, the rest must be 0.
-				buf[0] = byte(r.Creation & 3)
-				buf = buf[1:]
-				for i := 0; i < lenID; i++ {
-					// In the first word (4 bytes) of ID, only 18 bits
-					// are significant, the rest must be 0.
-					if i == 0 {
-						// 2**18 - 1 = 262143
-						binary.BigEndian.PutUint32(buf[:4], r.ID[i]&262143)
-					} else {
-						binary.BigEndian.PutUint32(buf[:4], r.ID[i])
-					}
-					buf = buf[4:]
-				}
-
-				stack.i++
-				continue
-
+				panic("TODO NewRef encode")
 			case ettNewerRef:
 				r := stack.term.(gen.Ref)
 				if stack.i == 0 {
@@ -206,17 +181,20 @@ func Encode(term Term, b *lib.Buffer, options EncodeOptions) (retErr error) {
 					break
 				}
 
-				// // FIXME Erlang 24 has a bug https://github.com/erlang/otp/issues/5097
-				// uncomment once they fix it
-				lenID := 3
-				//if options.FlagBigPidRef {
-				//	lenID = 5
-				//}
+				lenID := int(r.ID[2] & 7)
+				// 4 (creation) + N of IDs
 				buf := b.Extend(4 + lenID*4)
 				binary.BigEndian.PutUint32(buf[0:4], uint32(r.Creation))
 				buf = buf[4:]
 				for i := 0; i < lenID; i++ {
-					binary.BigEndian.PutUint32(buf[:4], r.ID[i])
+					if i%2 == 0 {
+						id32 := uint32(r.ID[i/2] >> 32)
+
+						binary.BigEndian.PutUint32(buf[:4], id32)
+					} else {
+						id32 := uint32(r.ID[i/2])
+						binary.BigEndian.PutUint32(buf[:4], id32)
+					}
 					buf = buf[4:]
 				}
 
@@ -670,16 +648,21 @@ func Encode(term Term, b *lib.Buffer, options EncodeOptions) (retErr error) {
 				child.termType = ettNewRef
 			}
 
+			// use t.ID[0] and t.ID[1] (64 + 64 = 4 * 32)
+			lenID := uint16(4)
+			// check last 3 bits
+			if l := (t.ID[2] & 7); l > 0 {
+				// erlang's ref. it keeps the num of used IDs
+				lenID = uint16(l)
+			} else {
+				// set ergo-integrity flag
+				t.ID[0] |= 1 << 63
+				t.ID[2] |= 4
+			}
+
 			// LEN a 16-bit big endian unsigned integer not larger
 			// than 5 when the FlagBigPidRef has been set; otherwise not larger than 3.
-
-			// FIXME Erlang 24 has a bug https://github.com/erlang/otp/issues/5097
-			// uncomment once they fix it
-			//if options.FlagBigPidRef {
-			//	binary.BigEndian.PutUint16(buf[1:3], 5)
-			//} else {
-			binary.BigEndian.PutUint16(buf[1:3], 3)
-			//}
+			binary.BigEndian.PutUint16(buf[1:3], lenID)
 
 		case Map:
 			lenMap := len(t)

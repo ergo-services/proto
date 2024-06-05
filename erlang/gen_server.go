@@ -185,11 +185,10 @@ func (gs *GenServer) ProcessRun() (rr error) {
 				if ref, ok := tupleFrom.Element(2).(gen.Ref); ok {
 					request := tuple.Element(3)
 					result, reason := gs.HandleCall(from, ref, request)
-					reply := etf.Tuple{ref, result}
 					if reason != nil {
 						// if reason is "normal" and we got response - send it before termination
 						if reason == gen.TerminateReasonNormal && result != nil {
-							gs.SendPID(message.From, reply)
+							gs.SendResponse(message.From, ref, result)
 						}
 						return reason
 					}
@@ -200,27 +199,33 @@ func (gs *GenServer) ProcessRun() (rr error) {
 						continue
 					}
 
-					gs.SendPID(message.From, reply)
+					gs.SendResponse(message.From, ref, result)
 
 				}
 
-				// I have no words how stupid Erlang's approach to get
+				// I have no words how worst Erlang's approach to get
 				// rid of 'phantom'-messages (late replies).
 				// But it is what it is.
 				// Check if it was request with "alias"
-				// etf.List[gen.Atom("alias"), etf.Ref]
+				// etf.List[gen.Atom("alias"), gen.Ref]
 				if list, ok := tupleFrom.Element(2).(etf.List); ok && len(list) == 2 {
 					if ref, ok := list.Element(2).(gen.Ref); ok &&
 						list.Element(1) == gen.Atom("alias") {
-						//
+
+						// a little trick to support async reply with SendResponse.
+						// the last ID is unused in Ergo so we can take some bits there
+						// for the erlang support. set 4th bit as a flag which SendResponse
+						// could rely on - whether to send reply to the PID or Alias.
+						// (first 3 bits are taken already for keeping the length of IDs
+						// in the erlnag's ref)
+						ref.ID[2] |= (1 << 3)
+
 						request := tuple.Element(3)
 						result, reason := gs.HandleCall(from, ref, request)
-						tag := etf.ListImproper{gen.Atom("alias"), ref}
-						reply := etf.Tuple{tag, result}
 						if reason != nil {
 							// if reason is "normal" and we got response - send it before termination
 							if reason == gen.TerminateReasonNormal && result != nil {
-								gs.SendAlias(gen.Alias(ref), reply)
+								gs.SendResponse(message.From, ref, result)
 							}
 							return reason
 						}
@@ -231,7 +236,7 @@ func (gs *GenServer) ProcessRun() (rr error) {
 							continue
 						}
 
-						gs.SendAlias(gen.Alias(ref), reply)
+						gs.SendResponse(message.From, ref, result)
 						continue
 					}
 				}
