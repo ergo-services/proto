@@ -63,6 +63,10 @@ type connection struct {
 	checkCleanTimeout  time.Duration // default is 5 seconds
 	checkCleanDeadline time.Duration // how long we wait for the next fragment of the certain sequenceID. Default is 30 seconds
 
+	// monitors
+	monitorsPeerNode lib.Map[any, gen.Ref]
+	monitorsNodePeer lib.Map[any, gen.Ref]
+
 	terminated bool
 
 	wg sync.WaitGroup
@@ -327,18 +331,22 @@ func (c *connection) DemonitorProcessID(pid gen.PID, target gen.ProcessID) error
 }
 
 func (c *connection) MonitorAlias(pid gen.PID, target gen.Alias) error {
+	// Erlang doesn't support this feature
 	return gen.ErrUnsupported
 }
 
 func (c *connection) DemonitorAlias(pid gen.PID, target gen.Alias) error {
+	// Erlang doesn't support this feature
 	return gen.ErrUnsupported
 }
 
 func (c *connection) MonitorEvent(pid gen.PID, target gen.Event) ([]gen.MessageEvent, error) {
+	// Erlang doesn't support this feature
 	return nil, gen.ErrUnsupported
 }
 
 func (c *connection) DemonitorEvent(pid gen.PID, target gen.Event) error {
+	// Erlang doesn't support this feature
 	return gen.ErrUnsupported
 }
 
@@ -724,37 +732,41 @@ func (c *connection) handleDistMessage(control etf.Term, payload etf.Term) (err 
 				return nil
 
 			case distProtoMONITOR:
-				// TODO
-				// {19, FromPid, ToProc, Ref}, where FromPid = monitoring process
-				// and ToProc = monitored process pid or name (atom)
+				// {19, FromPid, Target, Ref}, where FromPid = monitoring process
+				// and Target = monitored process pid or name (atom)
 
-				// fromPid := t.Element(2).(gen.PID)
-				// ref := t.Element(4).(gen.Ref)
-				// // if monitoring by pid
-				// if to, ok := t.Element(3).(gen.PID); ok {
-				// 	c.core.RouteMonitorPID(fromPid, to, ref)
-				// 	return nil
-				// }
-				//
-				// // if monitoring by process name
-				// if to, ok := t.Element(3).(gen.Atom); ok {
-				// 	processID := gen.ProcessID{
-				// 		Node: c.core.Name(),
-				// 		Name: to,
-				// 	}
-				// 	c.core.RouteMonitorProcessID(fromPid, processID, ref)
-				// 	return nil
-				// }
+				fromPid := t.Element(2).(gen.PID)
+				ref := t.Element(4).(gen.Ref)
+				// if monitoring by pid
+				if target, ok := t.Element(3).(gen.PID); ok {
+					if err := c.core.RouteMonitorPID(fromPid, target); err == nil {
+						// FIXME
+						c.monitorsPeerNode.Store(target, ref)
+					}
+					return nil
+				}
+				// otherwise, target must be a process name
+				if name, ok := t.Element(3).(gen.Atom); ok {
+					target := gen.ProcessID{
+						Node: c.core.Name(),
+						Name: name,
+					}
+					if err := c.core.RouteMonitorProcessID(fromPid, target); err == nil {
+						c.monitorsPeerNode.Store(target, ref)
+					}
+					return nil
+				}
 
 				return fmt.Errorf("malformed monitor message")
 
 			case distProtoDEMONITOR:
-				// TODO
 				// {20, FromPid, ToProc, Ref}, where FromPid = monitoring process
 				// and ToProc = monitored process pid or name (atom)
-				// ref := t.Element(4).(gen.Ref)
-				// fromPid := t.Element(2).(gen.PID)
-				// c.core.RouteDemonitor(fromPid, ref)
+				ref := t.Element(4).(gen.Ref)
+				fromPid := t.Element(2).(gen.PID)
+				if err := c.core.RouteDemonitor(fromPid, ref); err == nil {
+					c.monitorsPeerNode.Delete()
+				}
 				return nil
 
 			case distProtoMONITOR_EXIT:

@@ -613,14 +613,14 @@ func Decode(packet []byte, cache []gen.Atom, options DecodeOptions) (retTerm Ter
 				term = termNil
 			}
 
-		case ettPid, ettNewPid:
+		case ettNewPid:
 			child = &stackElement{
 				parent:   stack,
 				termType: t,
 				children: 1,
 			}
 
-		case ettNewRef, ettNewerRef:
+		case ettNewerRef:
 			if len(packet) < 2 {
 				return nil, nil, errMalformedRef
 			}
@@ -661,7 +661,7 @@ func Decode(packet []byte, cache []gen.Atom, options DecodeOptions) (retTerm Ter
 			}
 			packet = packet[29:]
 
-		case ettPort, ettNewPort:
+		case ettNewPort:
 			child = &stackElement{
 				parent:   stack,
 				termType: t,
@@ -925,38 +925,6 @@ func Decode(packet []byte, cache []gen.Atom, options DecodeOptions) (retTerm Ter
 				stack.tmp = term
 				stack.i++
 
-			case ettPid:
-				if len(packet) < 9 {
-					return nil, nil, errMalformedPid
-				}
-
-				name, ok := term.(gen.Atom)
-				if !ok {
-					return nil, nil, errMalformedPid
-				}
-				pid := gen.PID{
-					Node: name,
-					// Same as NEW_PID_EXT except the Creation field is
-					// only one byte and only two bits are significant,
-					// the rest are to be 0.
-					Creation: int64(packet[8]) & 3,
-				}
-
-				id := uint64(binary.BigEndian.Uint32(packet[:4]))
-				serial := uint64(binary.BigEndian.Uint32(packet[4:8]))
-				if options.FlagBigPidRef {
-					id = id | (serial << 32)
-				} else {
-					// id 15 bits only 2**15 - 1 = 32767
-					// serial 13 bits only 2**13 - 1 = 8191
-					id = (id & 32767) | ((serial & 8191) << 15)
-				}
-				pid.ID = id
-
-				packet = packet[9:]
-				stack.term = pid
-				stack.i++
-
 			case ettNewPid:
 				if len(packet) < 12 {
 					return nil, nil, errMalformedNewPid
@@ -985,8 +953,6 @@ func Decode(packet []byte, cache []gen.Atom, options DecodeOptions) (retTerm Ter
 				packet = packet[12:]
 				stack.term = pid
 				stack.i++
-			case ettNewRef:
-				panic("TODO NewRef decode")
 
 			case ettNewerRef:
 				name, ok := term.(gen.Atom)
@@ -1033,26 +999,6 @@ func Decode(packet []byte, cache []gen.Atom, options DecodeOptions) (retTerm Ter
 				}
 
 				stack.term = ref
-				stack.i++
-
-			case ettPort:
-				if len(packet) < 5 {
-					return nil, nil, errMalformedPort
-				}
-
-				name, ok := term.(gen.Atom)
-				if !ok {
-					return nil, nil, errMalformedPort
-				}
-
-				port := Port{
-					Node:     name,
-					ID:       binary.BigEndian.Uint32(packet[:4]),
-					Creation: uint32(packet[4]),
-				}
-
-				packet = packet[5:]
-				stack.term = port
 				stack.i++
 
 			case ettNewPort:

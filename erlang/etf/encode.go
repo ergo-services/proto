@@ -107,43 +107,6 @@ func Encode(term Term, b *lib.Buffer, options EncodeOptions) (retErr error) {
 			case ettSmallTuple:
 				term = stack.term.(Tuple)[stack.i]
 
-			case ettPid:
-				p := stack.term.(gen.PID)
-				if stack.i == 0 {
-					term = p.Node
-					break
-				}
-
-				buf := b.Extend(9)
-
-				// ID a 32-bit big endian unsigned integer.
-				// If FlagBigPidRef is not set, only 15 bits may be used
-				// and the rest must be 0.
-				if options.FlagBigPidRef {
-					binary.BigEndian.PutUint32(buf[:4], uint32(p.ID))
-				} else {
-					// 15 bits only 2**15 - 1 = 32767
-					binary.BigEndian.PutUint32(buf[:4], uint32(p.ID)&32767)
-				}
-
-				// Serial a 32-bit big endian unsigned integer.
-				// If distribution FlagBigPidRef is not set, only 13 bits may be used
-				// and the rest must be 0.
-				if options.FlagBigPidRef {
-					binary.BigEndian.PutUint32(buf[4:8], uint32(p.ID>>32))
-				} else {
-					// 13 bits only 2**13 - 1 = 8191
-					binary.BigEndian.PutUint32(buf[4:8], (uint32(p.ID>>15) & 8191))
-				}
-
-				// Same as NEW_PID_EXT except the Creation field is
-				// only one byte and only two bits are significant,
-				// the rest are to be 0.
-				buf[8] = byte(p.Creation) & 3
-
-				stack.i++
-				continue
-
 			case ettNewPid:
 				p := stack.term.(gen.PID)
 				if stack.i == 0 {
@@ -172,8 +135,6 @@ func Encode(term Term, b *lib.Buffer, options EncodeOptions) (retErr error) {
 				stack.i++
 				continue
 
-			case ettNewRef:
-				panic("TODO NewRef encode")
 			case ettNewerRef:
 				r := stack.term.(gen.Ref)
 				if stack.i == 0 {
@@ -619,13 +580,8 @@ func Encode(term Term, b *lib.Buffer, options EncodeOptions) (retErr error) {
 				term:     t,
 				children: 2,
 			}
-			if options.FlagBigCreation {
-				child.termType = ettNewPid
-				b.AppendByte(ettNewPid)
-			} else {
-				child.termType = ettPid
-				b.AppendByte(ettPid)
-			}
+			child.termType = ettNewPid
+			b.AppendByte(ettNewPid)
 
 		case gen.Alias:
 			term = gen.Ref(t)
@@ -639,14 +595,8 @@ func Encode(term Term, b *lib.Buffer, options EncodeOptions) (retErr error) {
 				term:     t,
 				children: 2,
 			}
-			if options.FlagBigCreation {
-				buf[0] = ettNewerRef
-				child.termType = ettNewerRef
-
-			} else {
-				buf[0] = ettNewRef
-				child.termType = ettNewRef
-			}
+			buf[0] = ettNewerRef
+			child.termType = ettNewerRef
 
 			// use t.ID[0] and t.ID[1] (64 + 64 = 4 * 32)
 			lenID := uint16(4)

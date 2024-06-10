@@ -345,12 +345,12 @@ func (gs *GenServer) HandleCall(from gen.PID, ref gen.Ref, request any) (any, er
 }
 
 func (gs *GenServer) HandleInfo(message any) error {
-	gs.Log().Warning("GenServer.HandleInfo: unhandled message %#v", message)
+	gs.Log().Warning("GenServer.HandleInfo: unhandled message %v", message)
 	return nil
 }
 
 func (gs *GenServer) HandleCast(message any) error {
-	gs.Log().Warning("GenServer.HandleCast: unhandled message %#v", message)
+	gs.Log().Warning("GenServer.HandleCast: unhandled message %v", message)
 	return nil
 }
 

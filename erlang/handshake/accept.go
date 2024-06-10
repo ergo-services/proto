@@ -172,6 +172,10 @@ func (h *handshake) sendChallengeAck(conn net.Conn, challenge uint32, cookie str
 
 func (h *handshake) readNameFlagsVersion(b []byte, result *gen.HandshakeResult) (int, error) {
 	peerFlags := erlang.Flags(binary.BigEndian.Uint32(b[2:6]))
+	if peerFlags.IsEnabled(erlang.FlagBigCreation) == false {
+		// we do not support Erlang version earlier than OTP-23
+		return 0, fmt.Errorf("unsupported Erlang version")
+	}
 	result.NodeFlags.Enable = true
 	result.NodeFlags.EnableRemoteSpawn = peerFlags.IsEnabled(erlang.FlagSpawn)
 	result.Custom = erlang.ConnectionOptions{
@@ -200,6 +204,10 @@ func (h *handshake) readNameFlagsVersion6(b []byte, result *gen.HandshakeResult)
 	result.PeerCreation = int64(binary.BigEndian.Uint32(b[8:12]))
 
 	peerFlags := erlang.Flags(binary.BigEndian.Uint64(b[0:8]))
+	if peerFlags.IsEnabled(erlang.FlagBigCreation) == false {
+		// we do not support Erlang version earlier than OTP-23
+		return fmt.Errorf("unsupported Erlang version")
+	}
 	result.PeerFlags.Enable = true
 	result.PeerFlags.EnableRemoteSpawn = peerFlags.IsEnabled(erlang.FlagSpawn)
 	result.Custom = erlang.ConnectionOptions{

@@ -10,9 +10,6 @@ import (
 	"ergo.services/proto/erlang/etf"
 )
 
-// later  "ergo.services/proto/erlang/etf"
-// "ergo.services/proto/erlang/handshake"
-
 type dist struct {
 	core               gen.Core
 	fragmentation_unit int
