@@ -13,7 +13,7 @@ import (
 
 	"ergo.services/ergo/gen"
 	"ergo.services/ergo/lib"
-	erlang "ergo.services/proto/erlang23"
+	"ergo.services/proto/erlang23"
 	"ergo.services/proto/erlang23/etf"
 )
 

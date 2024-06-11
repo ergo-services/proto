@@ -11,8 +11,8 @@ import (
 
 	"ergo.services/ergo/gen"
 
-	erlang "ergo.services/proto/erlang23/dist"
-	erlang "ergo.services/proto/erlang23/handshake"
+	"ergo.services/proto/erlang23/dist"
+	"ergo.services/proto/erlang23/handshake"
 )
 
 // EPMD proto
