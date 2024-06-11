@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"ergo.services/ergo/gen"
-	"ergo.services/proto/erlang"
+	erlang "ergo.services/proto/erlang23"
 )
 
 type handshake struct {

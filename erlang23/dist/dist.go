@@ -6,8 +6,8 @@ import (
 
 	"ergo.services/ergo/gen"
 	"ergo.services/ergo/lib"
-	"ergo.services/proto/erlang"
-	"ergo.services/proto/erlang/etf"
+	erlang "ergo.services/proto/erlang23"
+	"ergo.services/proto/erlang23/etf"
 )
 
 type dist struct {

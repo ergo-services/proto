@@ -6,7 +6,7 @@ import (
 	"encoding/binary"
 	"ergo.services/ergo/gen"
 	"ergo.services/ergo/lib"
-	"ergo.services/proto/erlang/etf"
+	"ergo.services/proto/erlang23/etf"
 )
 
 var (

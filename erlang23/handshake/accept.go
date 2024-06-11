@@ -11,7 +11,7 @@ import (
 
 	"ergo.services/ergo/gen"
 	"ergo.services/ergo/lib"
-	"ergo.services/proto/erlang"
+	erlang "ergo.services/proto/erlang23"
 )
 
 func (h *handshake) Accept(node gen.NodeHandshake, conn net.Conn, options gen.HandshakeOptions) (gen.HandshakeResult, error) {
