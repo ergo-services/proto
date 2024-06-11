@@ -64,7 +64,7 @@ type connection struct {
 	checkCleanDeadline time.Duration // how long we wait for the next fragment of the certain sequenceID. Default is 30 seconds
 
 	// monitors
-	monitorsPeerNode lib.Map[any, gen.Ref]
+	monitorsPeerNode lib.Map[gen.Ref, any] // value: gen.PID, gen.Atom
 	monitorsNodePeer lib.Map[any, gen.Ref]
 
 	terminated bool
@@ -738,22 +738,27 @@ func (c *connection) handleDistMessage(control etf.Term, payload etf.Term) (err 
 				fromPid := t.Element(2).(gen.PID)
 				ref := t.Element(4).(gen.Ref)
 				// if monitoring by pid
-				if target, ok := t.Element(3).(gen.PID); ok {
-					if err := c.core.RouteMonitorPID(fromPid, target); err == nil {
-						// FIXME
-						c.monitorsPeerNode.Store(target, ref)
+				switch to := t.Element(3).(type) {
+				case gen.PID:
+					err := c.core.RouteMonitorPID(fromPid, to)
+					if err == nil {
+						c.monitorsPeerNode.Store(ref, to)
+						return nil
 					}
+					// TODO unknown => send DOWN
 					return nil
-				}
-				// otherwise, target must be a process name
-				if name, ok := t.Element(3).(gen.Atom); ok {
+				case gen.Atom:
+					// otherwise, target must be a process name
 					target := gen.ProcessID{
+						Name: to,
 						Node: c.core.Name(),
-						Name: name,
 					}
-					if err := c.core.RouteMonitorProcessID(fromPid, target); err == nil {
-						c.monitorsPeerNode.Store(target, ref)
+					err := c.core.RouteMonitorProcessID(fromPid, target)
+					if err == nil || err == gen.ErrTargetExist {
+						c.monitorsPeerNode.Store(ref, target)
+						return nil
 					}
+					// TODO unknown => send DOWN
 					return nil
 				}
 
@@ -764,10 +769,21 @@ func (c *connection) handleDistMessage(control etf.Term, payload etf.Term) (err 
 				// and ToProc = monitored process pid or name (atom)
 				ref := t.Element(4).(gen.Ref)
 				fromPid := t.Element(2).(gen.PID)
-				if err := c.core.RouteDemonitor(fromPid, ref); err == nil {
-					c.monitorsPeerNode.Delete()
+
+				switch to := t.Element(3).(type) {
+				case gen.PID:
+					c.monitorsPeerNode.Delete(ref)
+					return c.core.RouteDemonitorPID(fromPid, to)
+
+				case gen.Atom:
+					target := gen.ProcessID{
+						Name: to,
+						Node: c.core.Name(),
+					}
+					c.monitorsPeerNode.Delete(ref)
+					return c.core.RouteDemonitorProcessID(fromPid, target)
 				}
-				return nil
+				return fmt.Errorf("malformed demonitor message")
 
 			case distProtoMONITOR_EXIT:
 				// {21, FromProc, ToPid, Ref, Reason}, where FromProc = monitored process
@@ -776,12 +792,10 @@ func (c *connection) handleDistMessage(control etf.Term, payload etf.Term) (err 
 				// ref := t.Element(4).(gen.Ref)
 				switch terminated := t.Element(2).(type) {
 				case gen.PID:
-					c.core.RouteTerminatePID(terminated, reason)
-					return nil
+					return c.core.RouteTerminatePID(terminated, reason)
 				case gen.Atom:
 					target := gen.ProcessID{Name: terminated, Node: c.peer}
-					c.core.RouteTerminateProcessID(target, reason)
-					return nil
+					return c.core.RouteTerminateProcessID(target, reason)
 				}
 				return fmt.Errorf("malformed monitor exit message")
 
