@@ -448,6 +448,11 @@ func (c *connection) serve(tail []byte) {
 
 		switch buf.B[5] {
 		case protoDistMessage:
+			if buf.B[6] == 0 {
+				// no cache in there
+				break
+			}
+
 			if _, _, err := decodeDistHeaderAtomCache(buf.B[6:], c.cache.In); err != nil {
 				c.log.Error("malformed DIST message: %s", err)
 				c.conn.Close()

@@ -11,3 +11,7 @@ func factory_kernel() gen.ProcessBehavior {
 type kernel struct {
 	GenServer
 }
+
+func (k *kernel) HandleInfo(msg any) error {
+	return nil
+}
