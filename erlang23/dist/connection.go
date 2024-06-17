@@ -27,14 +27,14 @@ type connection struct {
 	log                 gen.Log
 	node_flags          gen.NetworkFlags
 	node_maxmessagesize int
-	node_erlang_flags   erlang.Flags
+	node_erlang_flags   erlang23.Flags
 
 	peer                gen.Atom
 	peer_creation       int64
 	peer_flags          gen.NetworkFlags
 	peer_version        gen.Version
 	peer_maxmessagesize int
-	peer_erlang_flags   erlang.Flags
+	peer_erlang_flags   erlang23.Flags
 
 	handshakeVersion gen.Version
 	protoVersion     gen.Version
@@ -206,7 +206,7 @@ func (c *connection) SendProcessID(from gen.PID, to gen.ProcessID, options gen.M
 }
 
 func (c *connection) SendAlias(from gen.PID, to gen.Alias, options gen.MessageOptions, message any) error {
-	if c.peer_erlang_flags.IsEnabled(erlang.FlagAlias) == false {
+	if c.peer_erlang_flags.IsEnabled(erlang23.FlagAlias) == false {
 		return gen.ErrUnsupported
 	}
 	control := etf.Tuple{distProtoALIAS_SEND, from, to}
@@ -351,7 +351,7 @@ func (c *connection) DemonitorEvent(pid gen.PID, target gen.Event) error {
 }
 
 func (c *connection) RemoteSpawn(name gen.Atom, options gen.ProcessOptionsExtra) (gen.PID, error) {
-	if c.peer_erlang_flags.IsEnabled(erlang.FlagSpawn) == false {
+	if c.peer_erlang_flags.IsEnabled(erlang23.FlagSpawn) == false {
 		return gen.PID{}, gen.ErrUnsupported
 	}
 	// optlist := etf.List{}
@@ -985,14 +985,14 @@ func (c *connection) send(control, payload any) error {
 	packetBuffer.Allocate(reserve)
 	startDataPosition := reserve
 
-	fragmentationEnabled := c.peer_erlang_flags.IsEnabled(erlang.FlagFragments)
+	fragmentationEnabled := c.peer_erlang_flags.IsEnabled(erlang23.FlagFragments)
 
 	encodingOptions := etf.EncodeOptions{
 		AtomMapping:     c.mapping,
 		NodeName:        string(c.core.Name()),
 		PeerName:        string(c.peer),
-		FlagBigPidRef:   c.peer_erlang_flags.IsEnabled(erlang.FlagV4NC),
-		FlagBigCreation: c.peer_erlang_flags.IsEnabled(erlang.FlagBigCreation),
+		FlagBigPidRef:   c.peer_erlang_flags.IsEnabled(erlang23.FlagV4NC),
+		FlagBigCreation: c.peer_erlang_flags.IsEnabled(erlang23.FlagBigCreation),
 	}
 
 	// encode Control

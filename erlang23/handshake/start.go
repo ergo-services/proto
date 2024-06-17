@@ -11,7 +11,7 @@ import (
 
 	"ergo.services/ergo/gen"
 	"ergo.services/ergo/lib"
-	erlang "ergo.services/proto/erlang23"
+	"ergo.services/proto/erlang23"
 )
 
 func (h *handshake) Start(node gen.NodeHandshake, conn net.Conn, options gen.HandshakeOptions) (gen.HandshakeResult, error) {
@@ -123,7 +123,7 @@ func (h *handshake) Start(node gen.NodeHandshake, conn net.Conn, options gen.Han
 func (h *handshake) sendName(conn net.Conn, node gen.NodeHandshake, flags gen.NetworkFlags) error {
 	f := h.flags
 	if flags.Enable && flags.EnableRemoteSpawn {
-		f = f.Enable(erlang.FlagSpawn)
+		f = f.Enable(erlang23.FlagSpawn)
 	}
 	nodename := node.Name()
 	_, tls := conn.(*tls.Conn)
@@ -161,7 +161,7 @@ func (h *handshake) sendNameVersion6(conn net.Conn, node gen.NodeHandshake, flag
 	nodename := node.Name()
 	f := h.flags
 	if flags.Enable && flags.EnableRemoteSpawn {
-		f = f.Enable(erlang.FlagSpawn)
+		f = f.Enable(erlang23.FlagSpawn)
 	}
 	dataLength := 15 + len(nodename) // 1 + 8 (flags) + 4 (creation) + 2 (len nodename)
 
@@ -198,10 +198,10 @@ func (h *handshake) readChallenge(b []byte, result *gen.HandshakeResult) (uint32
 	if len(b) < 15 {
 		return challenge, fmt.Errorf("malformed DIST handshake challenge")
 	}
-	peerFlags := erlang.Flags(binary.BigEndian.Uint32(b[2:6]))
+	peerFlags := erlang23.Flags(binary.BigEndian.Uint32(b[2:6]))
 	result.PeerFlags.Enable = true
-	result.PeerFlags.EnableRemoteSpawn = peerFlags.IsEnabled(erlang.FlagSpawn)
-	result.Custom = erlang.ConnectionOptions{
+	result.PeerFlags.EnableRemoteSpawn = peerFlags.IsEnabled(erlang23.FlagSpawn)
+	result.Custom = erlang23.ConnectionOptions{
 		NodeFlags: h.flags,
 		PeerFlags: peerFlags,
 	}
@@ -218,11 +218,11 @@ func (h *handshake) readChallenge(b []byte, result *gen.HandshakeResult) (uint32
 
 func (h *handshake) readChallengeVersion6(b []byte, result *gen.HandshakeResult) (uint32, error) {
 	var challenge uint32
-	peerFlags := erlang.Flags(binary.BigEndian.Uint64(b[0:8]))
+	peerFlags := erlang23.Flags(binary.BigEndian.Uint64(b[0:8]))
 	result.PeerFlags.Enable = true
-	result.PeerFlags.EnableRemoteSpawn = peerFlags.IsEnabled(erlang.FlagSpawn)
+	result.PeerFlags.EnableRemoteSpawn = peerFlags.IsEnabled(erlang23.FlagSpawn)
 	result.PeerCreation = int64(binary.BigEndian.Uint32(b[12:16]))
-	result.Custom = erlang.ConnectionOptions{
+	result.Custom = erlang23.ConnectionOptions{
 		NodeFlags: h.flags,
 		PeerFlags: peerFlags,
 	}
@@ -262,7 +262,7 @@ func (h *handshake) sendChallengeReply(conn net.Conn, peerChallenge uint32, chal
 	return nil
 }
 
-func (h *handshake) sendComplement(conn net.Conn, f erlang.Flags, creation int64) error {
+func (h *handshake) sendComplement(conn net.Conn, f erlang23.Flags, creation int64) error {
 	_, tls := conn.(*tls.Conn)
 	node_flags := uint32(f.ToUint64() >> 32)
 	dataLength := 9 // 1 + 4 (flag high) + 4 (creation)

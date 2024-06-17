@@ -1,4 +1,4 @@
-package erlang
+package erlang23
 
 import (
 	"errors"

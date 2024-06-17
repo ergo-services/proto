@@ -10,16 +10,16 @@ import (
 	"time"
 
 	"ergo.services/ergo/gen"
-	erlang "ergo.services/proto/erlang23"
+	"ergo.services/proto/erlang23"
 )
 
 type handshake struct {
-	flags    erlang.Flags
+	flags    erlang23.Flags
 	version5 bool
 }
 
 type Options struct {
-	Flags []erlang.Flag
+	Flags []erlang23.Flag
 	// UseVersion5 makes DIST handhshake to use 5th version (by default is 6)
 	// Must be enabled for making connection with Erlang 22 and earlier
 	UseVersion5 bool
@@ -39,7 +39,7 @@ func Create(options Options) gen.NetworkHandshake {
 func (h *handshake) NetworkFlags() gen.NetworkFlags {
 	return gen.NetworkFlags{
 		Enable:            true,
-		EnableRemoteSpawn: h.flags.IsEnabled(erlang.FlagSpawn),
+		EnableRemoteSpawn: h.flags.IsEnabled(erlang23.FlagSpawn),
 	}
 }
 
@@ -106,44 +106,44 @@ func (h *handshake) readMessage(conn net.Conn, timeout time.Duration, chunk []by
 	}
 }
 
-func DefaultFlags() []erlang.Flag {
-	return []erlang.Flag{
-		erlang.FlagPublished,
-		erlang.FlagUnicodeIO,
-		erlang.FlagDistMonitor,
-		erlang.FlagNewFloats,
-		erlang.FlagBitBinaries,
-		erlang.FlagDistMonitorName,
-		erlang.FlagExtendedPidsPorts,
-		erlang.FlagExtendedReferences,
+func DefaultFlags() []erlang23.Flag {
+	return []erlang23.Flag{
+		erlang23.FlagPublished,
+		erlang23.FlagUnicodeIO,
+		erlang23.FlagDistMonitor,
+		erlang23.FlagNewFloats,
+		erlang23.FlagBitBinaries,
+		erlang23.FlagDistMonitorName,
+		erlang23.FlagExtendedPidsPorts,
+		erlang23.FlagExtendedReferences,
 
 		// Obsolete (see https://www.erlang.org/doc/apps/erts/erl_dist_protocol#distribution-flags)
 		//
-		// erlang.FlagAtomCache,
-		// erlang.FlagHiddenAtomCache,
+		// erlang23.FlagAtomCache,
+		// erlang23.FlagHiddenAtomCache,
 
-		erlang.FlagFunTags,
-		erlang.FlagNewFunTags,
-		erlang.FlagExportPtrTag,
-		erlang.FlagSmallAtomTags,
-		erlang.FlagUTF8Atoms,
-		erlang.FlagMapTag,
-		erlang.FlagHandshake23,
-		erlang.FlagUnlinkID,
-		erlang.FlagDistHdrAtomCache,
-		erlang.FlagFragments,
-		erlang.FlagBigCreation,
-		erlang.FlagAlias,
-		erlang.FlagV4NC,
+		erlang23.FlagFunTags,
+		erlang23.FlagNewFunTags,
+		erlang23.FlagExportPtrTag,
+		erlang23.FlagSmallAtomTags,
+		erlang23.FlagUTF8Atoms,
+		erlang23.FlagMapTag,
+		erlang23.FlagHandshake23,
+		erlang23.FlagUnlinkID,
+		erlang23.FlagDistHdrAtomCache,
+		erlang23.FlagFragments,
+		erlang23.FlagBigCreation,
+		erlang23.FlagAlias,
+		erlang23.FlagV4NC,
 	}
 }
 
-func toFlags(f ...erlang.Flag) erlang.Flags {
+func toFlags(f ...erlang23.Flag) erlang23.Flags {
 	var fs uint64
 	for _, v := range f {
 		fs |= uint64(v)
 	}
-	return erlang.Flags(fs)
+	return erlang23.Flags(fs)
 }
 
 func genDigest(challenge uint32, cookie string) []byte {

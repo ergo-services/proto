@@ -1,4 +1,4 @@
-package erlang
+package erlang23
 
 const (
 	// distribution flags are defined here https://erlang.org/doc/apps/erts/erl_dist_protocol.html#distribution-flags

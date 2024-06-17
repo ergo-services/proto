@@ -11,7 +11,7 @@ import (
 
 	"ergo.services/ergo/gen"
 	"ergo.services/ergo/lib"
-	erlang "ergo.services/proto/erlang23"
+	"ergo.services/proto/erlang23"
 )
 
 func (h *handshake) Accept(node gen.NodeHandshake, conn net.Conn, options gen.HandshakeOptions) (gen.HandshakeResult, error) {
@@ -171,14 +171,14 @@ func (h *handshake) sendChallengeAck(conn net.Conn, challenge uint32, cookie str
 }
 
 func (h *handshake) readNameFlagsVersion(b []byte, result *gen.HandshakeResult) (int, error) {
-	peerFlags := erlang.Flags(binary.BigEndian.Uint32(b[2:6]))
-	if peerFlags.IsEnabled(erlang.FlagBigCreation) == false {
+	peerFlags := erlang23.Flags(binary.BigEndian.Uint32(b[2:6]))
+	if peerFlags.IsEnabled(erlang23.FlagBigCreation) == false {
 		// we do not support Erlang version earlier than OTP-23
 		return 0, fmt.Errorf("unsupported Erlang version")
 	}
 	result.NodeFlags.Enable = true
-	result.NodeFlags.EnableRemoteSpawn = peerFlags.IsEnabled(erlang.FlagSpawn)
-	result.Custom = erlang.ConnectionOptions{
+	result.NodeFlags.EnableRemoteSpawn = peerFlags.IsEnabled(erlang23.FlagSpawn)
+	result.Custom = erlang23.ConnectionOptions{
 		NodeFlags: h.flags,
 		PeerFlags: peerFlags,
 	}
@@ -187,7 +187,7 @@ func (h *handshake) readNameFlagsVersion(b []byte, result *gen.HandshakeResult) 
 		return 0, fmt.Errorf("malformed version for DIST handshake: %d", version)
 	}
 
-	if peerFlags.IsEnabled(erlang.FlagHandshake23) {
+	if peerFlags.IsEnabled(erlang23.FlagHandshake23) {
 		version = 6
 	}
 
@@ -203,14 +203,14 @@ func (h *handshake) readNameFlagsVersion(b []byte, result *gen.HandshakeResult) 
 func (h *handshake) readNameFlagsVersion6(b []byte, result *gen.HandshakeResult) error {
 	result.PeerCreation = int64(binary.BigEndian.Uint32(b[8:12]))
 
-	peerFlags := erlang.Flags(binary.BigEndian.Uint64(b[0:8]))
-	if peerFlags.IsEnabled(erlang.FlagBigCreation) == false {
+	peerFlags := erlang23.Flags(binary.BigEndian.Uint64(b[0:8]))
+	if peerFlags.IsEnabled(erlang23.FlagBigCreation) == false {
 		// we do not support Erlang version earlier than OTP-23
 		return fmt.Errorf("unsupported Erlang version")
 	}
 	result.PeerFlags.Enable = true
-	result.PeerFlags.EnableRemoteSpawn = peerFlags.IsEnabled(erlang.FlagSpawn)
-	result.Custom = erlang.ConnectionOptions{
+	result.PeerFlags.EnableRemoteSpawn = peerFlags.IsEnabled(erlang23.FlagSpawn)
+	result.Custom = erlang23.ConnectionOptions{
 		NodeFlags: h.flags,
 		PeerFlags: peerFlags,
 	}

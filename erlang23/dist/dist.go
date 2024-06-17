@@ -32,7 +32,7 @@ func Create(options Options) gen.NetworkProto {
 
 func (d *dist) NewConnection(core gen.Core, result gen.HandshakeResult, log gen.Log) (gen.Connection, error) {
 
-	opts, ok := result.Custom.(erlang.ConnectionOptions)
+	opts, ok := result.Custom.(erlang23.ConnectionOptions)
 	if ok == false {
 		return nil, fmt.Errorf("unsupported type in gen.HandshakeResult.Costom")
 	}
