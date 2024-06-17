@@ -63,6 +63,8 @@ func (d *dist) NewConnection(core gen.Core, result gen.HandshakeResult, log gen.
 		mapping: etf.NewAtomMapping(),
 
 		fragment_unit: defaultFragmentationUnit,
+
+		monitors: createMonitors(),
 	}
 
 	// init recv queues. create 4 recv queues per connection

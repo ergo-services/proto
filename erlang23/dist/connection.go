@@ -57,6 +57,8 @@ type connection struct {
 	fragment_unit int
 	fragment_id   int64
 
+	monitors *monitors
+
 	// check and clean lost fragments
 	checkCleanPending  atomic.Bool
 	checkCleanTimer    *time.Timer
@@ -64,8 +66,9 @@ type connection struct {
 	checkCleanDeadline time.Duration // how long we wait for the next fragment of the certain sequenceID. Default is 30 seconds
 
 	// monitors
-	monitorsPeerNode lib.Map[gen.Ref, any] // value: gen.PID, gen.Atom
-	monitorsNodePeer lib.Map[any, gen.Ref]
+	monitorsPeerNode    lib.Map[gen.Ref, any] // gen.Ref => gen.PID or gen.Atom
+	monitorsPeerNodeRef lib.Map[any, gen.Ref] // gen.PID, gen.Atom => gen.Ref
+	monitorsNodePeer    lib.Map[any, gen.Ref]
 
 	terminated bool
 
@@ -237,13 +240,25 @@ func (c *connection) SendResponse(from gen.PID, to gen.PID, ref gen.Ref, options
 }
 
 func (c *connection) SendTerminatePID(target gen.PID, reason error) error {
+	r := gen.Atom(fmt.Sprintf("%.255s", reason))
+	for _, mon := range c.monitors.unregister(target) {
+		// atom value must be < 255 chars (not bytes). dont care. let it be 255 bytes.
+		control := etf.Tuple{distProtoMONITOR_EXIT, target, mon.pid, mon.ref, r}
+		c.send(control, nil)
+	}
+	// handle links
+	// TODO
 	// control:= etf.Tuple{distProtoEXIT, terminated, to, etf.Atom(reason)}
-	// control:= etf.Tuple{distProtoMONITOR_EXIT, terminated, to, ref, etf.Atom(reason)}
 	return nil
 }
 
 func (c *connection) SendTerminateProcessID(target gen.ProcessID, reason error) error {
-	// control:= etf.Tuple{distProtoMONITOR_EXIT, etf.Atom(terminated.Name), to, ref, etf.Atom(reason)},
+	// handle monitors
+	r := gen.Atom(fmt.Sprintf("%.255s", reason))
+	for _, mon := range c.monitors.unregister(target.Name) {
+		control := etf.Tuple{distProtoMONITOR_EXIT, target.Name, mon.pid, mon.ref, r}
+		c.send(control, nil)
+	}
 	return nil
 }
 
@@ -742,11 +757,14 @@ func (c *connection) handleDistMessage(control etf.Term, payload etf.Term) (err 
 				case gen.PID:
 					err := c.core.RouteMonitorPID(fromPid, to)
 					if err == nil {
-						c.monitorsPeerNode.Store(ref, to)
+						c.monitors.registerConsumer(to, fromPid, ref)
 						return nil
 					}
-					// TODO unknown => send DOWN
+					// unknown target => send DOWN
+					control := etf.Tuple{distProtoMONITOR_EXIT, to, fromPid, ref, gen.Atom("DOWN")}
+					c.send(control, nil)
 					return nil
+
 				case gen.Atom:
 					// otherwise, target must be a process name
 					target := gen.ProcessID{
@@ -754,11 +772,13 @@ func (c *connection) handleDistMessage(control etf.Term, payload etf.Term) (err 
 						Node: c.core.Name(),
 					}
 					err := c.core.RouteMonitorProcessID(fromPid, target)
-					if err == nil || err == gen.ErrTargetExist {
-						c.monitorsPeerNode.Store(ref, target)
+					if err == nil {
+						c.monitors.registerConsumer(to, fromPid, ref)
 						return nil
 					}
-					// TODO unknown => send DOWN
+					// unknown target => send DOWN
+					control := etf.Tuple{distProtoMONITOR_EXIT, to, fromPid, ref, gen.Atom("DOWN")}
+					c.send(control, nil)
 					return nil
 				}
 
@@ -772,16 +792,18 @@ func (c *connection) handleDistMessage(control etf.Term, payload etf.Term) (err 
 
 				switch to := t.Element(3).(type) {
 				case gen.PID:
-					c.monitorsPeerNode.Delete(ref)
-					return c.core.RouteDemonitorPID(fromPid, to)
+					c.core.RouteDemonitorPID(fromPid, to)
+					c.monitors.unregisterConsumer(to, fromPid, ref)
+					return nil
 
 				case gen.Atom:
 					target := gen.ProcessID{
 						Name: to,
 						Node: c.core.Name(),
 					}
-					c.monitorsPeerNode.Delete(ref)
-					return c.core.RouteDemonitorProcessID(fromPid, target)
+					c.core.RouteDemonitorProcessID(fromPid, target)
+					c.monitors.unregisterConsumer(to, fromPid, ref)
+					return nil
 				}
 				return fmt.Errorf("malformed demonitor message")
 
