@@ -58,6 +58,7 @@ type connection struct {
 	fragment_id   int64
 
 	monitors *monitors
+	links    *links
 
 	// check and clean lost fragments
 	checkCleanPending  atomic.Bool
@@ -225,7 +226,7 @@ func (c *connection) SendExit(from gen.PID, to gen.PID, reason error) error {
 }
 
 func (c *connection) SendResponse(from gen.PID, to gen.PID, ref gen.Ref, options gen.MessageOptions, response any) error {
-	// check the alias flag (see gen_server.go)
+	// checking for an alias flag (see gen_server.go)
 	useAlias := ref.ID[2]&(1<<3) == 1<<3
 	if useAlias {
 		// send reply using ref as an alias
@@ -240,15 +241,17 @@ func (c *connection) SendResponse(from gen.PID, to gen.PID, ref gen.Ref, options
 }
 
 func (c *connection) SendTerminatePID(target gen.PID, reason error) error {
+	// atom value must be < 255 chars (not bytes). dont care. let it be 255 bytes.
 	r := gen.Atom(fmt.Sprintf("%.255s", reason))
 	for _, mon := range c.monitors.unregister(target) {
-		// atom value must be < 255 chars (not bytes). dont care. let it be 255 bytes.
 		control := etf.Tuple{distProtoMONITOR_EXIT, target, mon.pid, mon.ref, r}
 		c.send(control, nil)
 	}
 	// handle links
-	// TODO
-	// control:= etf.Tuple{distProtoEXIT, terminated, to, etf.Atom(reason)}
+	for _, pid := range c.links.unregister(target) {
+		control := etf.Tuple{distProtoEXIT, target, pid, r}
+		c.send(control, nil)
+	}
 	return nil
 }
 
@@ -713,34 +716,50 @@ func (c *connection) handleDistMessage(control etf.Term, payload etf.Term) (err 
 				// {1, FromPid, ToPid}
 				pid := t.Element(2).(gen.PID)
 				target := t.Element(3).(gen.PID)
-				c.core.RouteLinkPID(pid, target)
+				if err := c.core.RouteLinkPID(pid, target); err == nil {
+					c.links.registerConsumer(target, pid)
+					return nil
+				}
+				control := etf.Tuple{distProtoEXIT, target, pid, gen.Atom("noproc")}
+				c.send(control, nil)
 				return nil
 
 			case distProtoUNLINK:
 				// {4, FromPid, ToPid}
 				pid := t.Element(2).(gen.PID)
 				target := t.Element(3).(gen.PID)
+				c.links.unregisterConsumer(target, pid)
 				c.core.RouteUnlinkPID(pid, target)
 				return nil
 
 			case distProtoUNLINK_ID:
-				// TODO
+				// {35, Id, FromPid, ToPid}
+				id := t.Element(2)
+				pid := t.Element(3).(gen.PID)
+				target := t.Element(4).(gen.PID)
+				c.links.unregisterConsumer(target, pid)
+				control := etf.Tuple{distProtoUNLINK_ID_ACK, id, target, pid}
+				c.send(control, nil)
 				return nil
 
 			case distProtoUNLINK_ID_ACK:
+				// {36, Id, FromPid, ToPid}
 				// TODO
+				fmt.Println("UNLINK_ID_ACK")
 				return nil
 
 			case distProtoNODE_LINK:
+				// why it does exist?
+				// docs says nothing about this type of message
 				return nil
 
 			case distProtoEXIT:
 				// TODO
 				// {3, FromPid, ToPid, Reason}
-				terminated := t.Element(2).(gen.PID)
+				target := t.Element(2).(gen.PID)
 				// to := t.Element(3).(gen.PID)
 				reason := fmt.Errorf("%s", t.Element(4))
-				c.core.RouteTerminatePID(terminated, reason)
+				c.core.RouteTerminatePID(target, reason)
 				return nil
 
 			case distProtoEXIT2:
@@ -755,8 +774,7 @@ func (c *connection) handleDistMessage(control etf.Term, payload etf.Term) (err 
 				// if monitoring by pid
 				switch to := t.Element(3).(type) {
 				case gen.PID:
-					err := c.core.RouteMonitorPID(fromPid, to)
-					if err == nil {
+					if err := c.core.RouteMonitorPID(fromPid, to); err == nil {
 						c.monitors.registerConsumer(to, fromPid, ref)
 						return nil
 					}
@@ -771,8 +789,7 @@ func (c *connection) handleDistMessage(control etf.Term, payload etf.Term) (err 
 						Name: to,
 						Node: c.core.Name(),
 					}
-					err := c.core.RouteMonitorProcessID(fromPid, target)
-					if err == nil {
+					if err := c.core.RouteMonitorProcessID(fromPid, target); err == nil {
 						c.monitors.registerConsumer(to, fromPid, ref)
 						return nil
 					}

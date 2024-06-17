@@ -65,6 +65,7 @@ func (d *dist) NewConnection(core gen.Core, result gen.HandshakeResult, log gen.
 		fragment_unit: defaultFragmentationUnit,
 
 		monitors: createMonitors(),
+		links:    createLinks(),
 	}
 
 	// init recv queues. create 4 recv queues per connection

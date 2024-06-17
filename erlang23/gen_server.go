@@ -341,7 +341,7 @@ func (gs *GenServer) Init(args ...any) error {
 
 func (gs *GenServer) HandleCall(from gen.PID, ref gen.Ref, request any) (any, error) {
 	gs.Log().Warning("GenServer.HandleCall: unhandled request from %s", from)
-	return gen.Atom("unhandled"), nil
+	return gs.PID(), nil
 }
 
 func (gs *GenServer) HandleInfo(message any) error {
