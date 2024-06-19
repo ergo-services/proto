@@ -113,8 +113,8 @@ func (c *connection) Version() gen.Version {
 func (c *connection) Info() gen.RemoteNodeInfo {
 	info := gen.RemoteNodeInfo{
 		Node:             c.peer,
-		Uptime:           0, // erlang has no this info
-		ConnectionUptime: time.Now().Unix() - c.creation,
+		Uptime:           c.Uptime(),
+		ConnectionUptime: c.ConnectionUptime(),
 		Version:          c.peer_version,
 
 		HandshakeVersion: c.handshakeVersion,
@@ -760,8 +760,7 @@ func (c *connection) handleDistMessage(control etf.Term, payload etf.Term) (err 
 
 			case distProtoUNLINK_ID_ACK:
 				// {36, Id, FromPid, ToPid}
-				// TODO
-				fmt.Println("UNLINK_ID_ACK")
+				// we dont need it
 				return nil
 
 			case distProtoNODE_LINK:
@@ -773,11 +772,15 @@ func (c *connection) handleDistMessage(control etf.Term, payload etf.Term) (err 
 				// no idea why they created them the same
 				// EXIT {3, FromPid, ToPid, Reason}
 				// EXIT2 {8, FromPid, ToPid, Reason}
-				target := t.Element(2).(gen.PID)
-				pid := t.Element(3).(gen.PID)
+				pid := t.Element(2).(gen.PID)
+				target := t.Element(3).(gen.PID)
 				reason := fmt.Errorf("%s", t.Element(4))
+				if c.links.unregisterConsumer(target, pid) == false {
+					// it wasn't a link. remote process sent exit signal with erlang:send/2
+					c.core.RouteSendExit(pid, target, reason)
+					return nil
+				}
 				c.core.RouteTerminatePID(target, reason)
-				c.links.unregisterConsumer(target, pid)
 				return nil
 
 			case distProtoMONITOR:
@@ -871,47 +874,75 @@ func (c *connection) handleDistMessage(control etf.Term, payload etf.Term) (err 
 				return nil
 
 			case distProtoSPAWN_REQUEST:
-				// TODO
 				// {29, ReqId, From, GroupLeader, {Module, Function, Arity}, OptList}
-				// registerName := ""
-				// for _, option := range t.Element(6).(etf.List) {
-				// 	name, ok := option.(etf.Tuple)
-				// 	if !ok || len(name) != 2 {
-				// 		return fmt.Errorf("malformed spawn request")
-				// 	}
-				// 	switch name.Element(1) {
-				// 	case gen.Atom("name"):
-				// 		registerName = string(name.Element(2).(gen.Atom))
-				// 	}
-				// }
+				registerName := gen.Atom("")
+				// OptList is a proplist
+				for _, v := range t.Element(6).(etf.List) {
+					prop := v.(etf.Tuple)
+					if len(prop) != 2 {
+						return fmt.Errorf("malformed spawn request")
+					}
+					name := prop.Element(1).(gen.Atom)
+					switch name {
+					case gen.Atom("name"):
+						registerName = prop.Element(2).(gen.Atom)
+						continue
+					}
+					fmt.Println("OPTS", prop.Element(1), prop.Element(2))
+				}
 				//
-				// from := t.Element(3).(gen.PID)
-				// ref := t.Element(2).(gen.Ref)
-				//
-				// mfa := t.Element(5).(etf.Tuple)
-				// module := mfa.Element(1).(gen.Atom)
-				// function := mfa.Element(2).(gen.Atom)
-				// var args etf.List
-				// if str, ok := payload.(string); !ok {
-				// 	args, _ = payload.(etf.List)
-				// } else {
-				// 	// stupid Erlang's strings :). [1,2,3,4,5] sends as a string.
-				// 	// args can't be anything but etf.List.
-				// 	for i := range []byte(str) {
-				// 		args = append(args, str[i])
-				// 	}
-				// }
-				//
-				// spawnRequestOptions := gen.RemoteSpawnOptions{
-				// 	Name:     registerName,
-				// 	Function: string(function),
-				// }
-				// spawnRequest := gen.RemoteSpawnRequest{
-				// 	From:    from,
-				// 	Ref:     ref,
-				// 	Options: spawnRequestOptions,
-				// }
-				// dc.router.RouteSpawnRequest(dc.nodename, string(module), spawnRequest, args...)
+				ref := t.Element(2).(gen.Ref)
+				from := t.Element(3).(gen.PID)
+				leader := t.Element(3).(gen.PID)
+
+				mfa := t.Element(5).(etf.Tuple)
+				module := mfa.Element(1).(gen.Atom)
+
+				args := []any{}
+				switch pl := payload.(type) {
+				case string:
+					// Erlang's strings: args like [1,2,3,4,5] Erlang sends as a string.
+					// Yeah, I know :). It makes me crazy too.
+					// Args can't be anything but etf.List.
+					for _, b := range []byte(pl) {
+						args = append(args, int8(b))
+					}
+				case etf.List:
+					for _, a := range pl {
+						args = append(args, a)
+					}
+				}
+
+				spawnOptions := gen.ProcessOptionsExtra{
+					ParentPID:    from,
+					ParentLeader: leader,
+					Register:     registerName,
+					Args:         args,
+				}
+
+				spawnedPID, err := c.core.RouteSpawn(c.core.Name(), module, spawnOptions, c.peer)
+
+				// {31, ReqId, To, Flags, Result}
+				if err != nil {
+					control := etf.Tuple{
+						distProtoSPAWN_REPLY,
+						ref,
+						from,
+						0,                     // Flags
+						gen.Atom(err.Error()), // Result
+					}
+					c.send(control, nil)
+					return nil
+				}
+
+				control := etf.Tuple{
+					distProtoSPAWN_REPLY,
+					ref,
+					from,
+					0,          // Flags
+					spawnedPID, // Result
+				}
+				c.send(control, nil)
 				return nil
 
 			case distProtoSPAWN_REPLY:

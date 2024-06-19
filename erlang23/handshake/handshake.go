@@ -145,6 +145,7 @@ func DefaultFlags() []erlang23.Flag {
 
 		erlang23.FlagAlias,
 		erlang23.FlagV4NC,
+		erlang23.FlagSpawn,
 	}
 }
 

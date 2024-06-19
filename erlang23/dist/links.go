@@ -25,7 +25,7 @@ func (l *links) registerConsumer(target gen.PID, pid gen.PID) {
 	l.consumers[target] = list
 }
 
-func (l *links) unregisterConsumer(target gen.PID, pid gen.PID) {
+func (l *links) unregisterConsumer(target gen.PID, pid gen.PID) bool {
 	l.Lock()
 	defer l.Unlock()
 	list := l.consumers[target]
@@ -38,11 +38,12 @@ func (l *links) unregisterConsumer(target gen.PID, pid gen.PID) {
 		list = list[1:]
 		if len(list) == 0 {
 			delete(l.consumers, target)
-			return
+			return true
 		}
 		l.consumers[target] = list
-		return
+		return true
 	}
+	return false
 }
 
 func (l *links) unregister(target gen.PID) []gen.PID {
