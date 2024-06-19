@@ -140,8 +140,8 @@ func DefaultFlags() []erlang23.Flag {
 		//    distProtoPAYLOAD_EXIT
 		//    distProtoPAYLOAD_EXIT2
 		//    distProtoPAYLOAD_MONITOR_P_EXIT
-		// erlang23.FlagExitPayload,
 		//
+		// erlang23.FlagExitPayload,
 
 		erlang23.FlagAlias,
 		erlang23.FlagV4NC,
