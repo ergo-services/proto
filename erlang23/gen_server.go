@@ -184,7 +184,7 @@ func (gs *GenServer) ProcessRun() (rr error) {
 
 				if ref, ok := tupleFrom.Element(2).(gen.Ref); ok {
 					request := tuple.Element(3)
-					result, reason := gs.HandleCall(from, ref, request)
+					result, reason := gs.behavior.HandleCall(from, ref, request)
 					if reason != nil {
 						// if reason is "normal" and we got response - send it before termination
 						if reason == gen.TerminateReasonNormal && result != nil {
@@ -221,7 +221,7 @@ func (gs *GenServer) ProcessRun() (rr error) {
 						ref.ID[2] |= (1 << 3)
 
 						request := tuple.Element(3)
-						result, reason := gs.HandleCall(from, ref, request)
+						result, reason := gs.behavior.HandleCall(from, ref, request)
 						if reason != nil {
 							// if reason is "normal" and we got response - send it before termination
 							if reason == gen.TerminateReasonNormal && result != nil {
@@ -341,7 +341,7 @@ func (gs *GenServer) Init(args ...any) error {
 
 func (gs *GenServer) HandleCall(from gen.PID, ref gen.Ref, request any) (any, error) {
 	gs.Log().Warning("GenServer.HandleCall: unhandled request from %s", from)
-	return gs.PID(), nil
+	return gen.Atom("unhandled"), nil
 }
 
 func (gs *GenServer) HandleInfo(message any) error {

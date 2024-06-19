@@ -143,6 +143,11 @@ func Encode(term Term, b *lib.Buffer, options EncodeOptions) (retErr error) {
 				}
 
 				lenID := int(r.ID[2] & 7)
+				if lenID == 0 {
+					// set ergo-integrity flag
+					r.ID[0] |= (uint64(1) << 63)
+					lenID = 5
+				}
 				// 4 (creation) + N of IDs
 				buf := b.Extend(4 + lenID*4)
 				binary.BigEndian.PutUint32(buf[0:4], uint32(r.Creation))
@@ -150,7 +155,6 @@ func Encode(term Term, b *lib.Buffer, options EncodeOptions) (retErr error) {
 				for i := 0; i < lenID; i++ {
 					if i%2 == 0 {
 						id32 := uint32(r.ID[i/2] >> 32)
-
 						binary.BigEndian.PutUint32(buf[:4], id32)
 					} else {
 						id32 := uint32(r.ID[i/2])

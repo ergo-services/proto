@@ -37,7 +37,7 @@ func (m *monitors) registerConsumer(target any, pid gen.PID, ref gen.Ref) {
 	m.refs[ref] = target
 }
 
-func (m *monitors) unregisterConsumer(target any, pid gen.PID, ref gen.Ref) {
+func (m *monitors) unregisterConsumer(target any, pid gen.PID, ref gen.Ref) gen.Ref {
 	m.Lock()
 	defer m.Unlock()
 
@@ -52,11 +52,14 @@ func (m *monitors) unregisterConsumer(target any, pid gen.PID, ref gen.Ref) {
 		list = list[1:]
 		if len(list) == 0 {
 			delete(m.consumers, target)
-			return
+			return mon.ref
 		}
+
+		delete(m.refs, mon.ref)
 		m.consumers[target] = list
-		return
+		return mon.ref
 	}
+	return ref
 }
 
 func (m *monitors) unregister(target any) []monitor {

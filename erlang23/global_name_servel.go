@@ -11,3 +11,7 @@ func factory_global_name_server() gen.ProcessBehavior {
 type global_name_server struct {
 	GenServer
 }
+
+func (g *global_name_server) HandleCast(msg any) error {
+	return nil
+}

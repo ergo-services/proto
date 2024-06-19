@@ -133,6 +133,16 @@ func DefaultFlags() []erlang23.Flag {
 		erlang23.FlagDistHdrAtomCache,
 		erlang23.FlagFragments,
 		erlang23.FlagBigCreation,
+
+		// Dont see any reason to enable this feature. maybe later.
+		// if we decide to go with this flag there must be hanled the following
+		// message types:
+		//    distProtoPAYLOAD_EXIT
+		//    distProtoPAYLOAD_EXIT2
+		//    distProtoPAYLOAD_MONITOR_P_EXIT
+		// erlang23.FlagExitPayload,
+		//
+
 		erlang23.FlagAlias,
 		erlang23.FlagV4NC,
 	}

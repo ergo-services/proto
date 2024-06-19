@@ -18,15 +18,16 @@ const (
 	FlagDistHdrAtomCache   Flag = 0x2000
 	FlagSmallAtomTags      Flag = 0x4000
 	//	FlagCompressed                   = 0x8000 // erlang uses this flag for the internal purposes
-	FlagUTF8Atoms         Flag = 0x10000
-	FlagMapTag            Flag = 0x20000
-	FlagBigCreation       Flag = 0x40000
-	FlagSendSender        Flag = 0x80000 // since OTP.21 enable replacement for SEND (distProtoSEND by distProtoSEND_SENDER)
-	FlagBigSeqTraceLabels      = 0x100000
-	FlagExitPayload       Flag = 0x400000 // since OTP.22 enable replacement for EXIT, EXIT2, MONITOR_P_EXIT
-	FlagFragments         Flag = 0x800000
-	FlagHandshake23       Flag = 0x1000000 // new connection setup handshake (version 6) introduced in OTP 23
-	FlagUnlinkID          Flag = 0x2000000
+	FlagUTF8Atoms   Flag = 0x10000
+	FlagMapTag      Flag = 0x20000
+	FlagBigCreation Flag = 0x40000
+
+	// FlagBigSeqTraceLabels Flag = 0x100000 // we dont use it
+
+	FlagExitPayload Flag = 0x400000 // since OTP.22 enable replacement for EXIT, EXIT2, MONITOR_P_EXIT
+	FlagFragments   Flag = 0x800000
+	FlagHandshake23 Flag = 0x1000000 // new connection setup handshake (version 6) introduced in OTP 23
+	FlagUnlinkID    Flag = 0x2000000
 	// for 64bit flags
 	FlagSpawn  Flag = 1 << 32
 	FlagNameMe Flag = 1 << 33

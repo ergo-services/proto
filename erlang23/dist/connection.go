@@ -292,13 +292,15 @@ func (c *connection) LinkPID(pid gen.PID, target gen.PID) error {
 	if target.Creation != c.peer_creation {
 		return gen.ErrProcessIncarnation
 	}
-	// control := etf.Tuple{distProtoLINK, local, remote}
-	return nil
+	c.links.registerConsumer(target, pid)
+	control := etf.Tuple{distProtoLINK, pid, target}
+	return c.send(control, nil)
 }
 
 func (c *connection) UnlinkPID(pid gen.PID, target gen.PID) error {
-	// control := etf.Tuple{distProtoUNLINK, local, remote}
-	return nil
+	c.links.unregisterConsumer(target, pid)
+	control := etf.Tuple{distProtoUNLINK, pid, target}
+	return c.send(control, nil)
 }
 
 func (c *connection) LinkProcessID(pid gen.PID, target gen.ProcessID) error {
@@ -329,23 +331,32 @@ func (c *connection) MonitorPID(pid gen.PID, target gen.PID) error {
 	if target.Creation != c.peer_creation {
 		return gen.ErrProcessIncarnation
 	}
-	// control := etf.Tuple{distProtoMONITOR, local, remote, ref}
-	return nil
+	ref := c.core.MakeRef()
+	c.monitors.registerConsumer(target, pid, ref)
+	control := etf.Tuple{distProtoMONITOR, pid, target, ref}
+	return c.send(control, nil)
 }
 
 func (c *connection) DemonitorPID(pid gen.PID, target gen.PID) error {
-	// control := etf.Tuple{distProtoDEMONITOR, local, remote, ref}
-	return nil
+	if target.Creation != c.peer_creation {
+		return gen.ErrProcessIncarnation
+	}
+	ref := c.monitors.unregisterConsumer(target, pid, gen.Ref{})
+	control := etf.Tuple{distProtoDEMONITOR, pid, target, ref}
+	return c.send(control, nil)
 }
 
 func (c *connection) MonitorProcessID(pid gen.PID, target gen.ProcessID) error {
-	// control := etf.Tuple{distProtoMONITOR, local, etf.Atom(remote.Name), ref}
-	return nil
+	ref := c.core.MakeRef()
+	c.monitors.registerConsumer(target, pid, ref)
+	control := etf.Tuple{distProtoMONITOR, pid, target.Name, ref}
+	return c.send(control, nil)
 }
 
 func (c *connection) DemonitorProcessID(pid gen.PID, target gen.ProcessID) error {
-	// control := etf.Tuple{distProtoDEMONITOR, local, etf.Atom(remote.Name), ref}
-	return nil
+	ref := c.monitors.unregisterConsumer(target, pid, gen.Ref{})
+	control := etf.Tuple{distProtoDEMONITOR, pid, target.Name, ref}
+	return c.send(control, nil)
 }
 
 func (c *connection) MonitorAlias(pid gen.PID, target gen.Alias) error {
@@ -754,20 +765,19 @@ func (c *connection) handleDistMessage(control etf.Term, payload etf.Term) (err 
 				return nil
 
 			case distProtoNODE_LINK:
-				// why it does exist?
 				// docs says nothing about this type of message
+				// and i have no idea why it does exist?
 				return nil
 
-			case distProtoEXIT:
-				// TODO
-				// {3, FromPid, ToPid, Reason}
+			case distProtoEXIT, distProtoEXIT2:
+				// no idea why they created them the same
+				// EXIT {3, FromPid, ToPid, Reason}
+				// EXIT2 {8, FromPid, ToPid, Reason}
 				target := t.Element(2).(gen.PID)
-				// to := t.Element(3).(gen.PID)
+				pid := t.Element(3).(gen.PID)
 				reason := fmt.Errorf("%s", t.Element(4))
 				c.core.RouteTerminatePID(target, reason)
-				return nil
-
-			case distProtoEXIT2:
+				c.links.unregisterConsumer(target, pid)
 				return nil
 
 			case distProtoMONITOR:
@@ -833,13 +843,17 @@ func (c *connection) handleDistMessage(control etf.Term, payload etf.Term) (err 
 				// {21, FromProc, ToPid, Ref, Reason}, where FromProc = monitored process
 				// pid or name (atom), ToPid = monitoring process, and Reason = exit reason for the monitored process
 				reason := fmt.Errorf("%s", t.Element(5))
-				// ref := t.Element(4).(gen.Ref)
-				switch terminated := t.Element(2).(type) {
+				pid := t.Element(3).(gen.PID)
+				ref := t.Element(4).(gen.Ref)
+				switch target := t.Element(2).(type) {
 				case gen.PID:
-					return c.core.RouteTerminatePID(terminated, reason)
+					c.monitors.unregisterConsumer(target, pid, ref)
+					return c.core.RouteTerminatePID(target, reason)
+
 				case gen.Atom:
-					target := gen.ProcessID{Name: terminated, Node: c.peer}
-					return c.core.RouteTerminateProcessID(target, reason)
+					tgt := gen.ProcessID{Name: target, Node: c.peer}
+					c.monitors.unregisterConsumer(tgt, pid, ref)
+					return c.core.RouteTerminateProcessID(tgt, reason)
 				}
 				return fmt.Errorf("malformed monitor exit message")
 
@@ -1000,7 +1014,7 @@ func (c *connection) decodeFragment(fragment []byte) (*lib.Buffer, error) {
 		}
 
 		valid := time.Now().Add(-c.checkCleanDeadline)
-		c.fragments.RangeLock(func(k uint64, v *fragmentedPacket) bool {
+		c.fragments.RangeLock(func(_ uint64, v *fragmentedPacket) bool {
 			if v.lastUpdate.Before(valid) {
 				// dropping  due to exceeded deadline
 				c.fragments.DeleteNoLock(sequenceID)
@@ -1054,12 +1068,12 @@ func (c *connection) send(control, payload any) error {
 	lenMessage = packetBuffer.Len() - reserve
 	lenAtomCache = 1
 	startDataPosition -= lenAtomCache
-	packetBuffer.B[startDataPosition] = byte(0)
+	packetBuffer.B[startDataPosition] = byte(0) // empty cache
 
 	for {
 		// 4 (packet len) + 1 (dist header: 131) + 1 (dist header: protoDistMessage) + lenAtomCache
 		lenPacket = 1 + 1 + lenAtomCache + lenMessage
-		if !fragmentationEnabled || lenMessage < c.fragment_unit {
+		if fragmentationEnabled == false || lenMessage < c.fragment_unit {
 			// send as a single packet
 			startDataPosition -= 1
 			packetBuffer.B[startDataPosition] = protoDistMessage // 68
