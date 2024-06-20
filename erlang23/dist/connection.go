@@ -7,6 +7,7 @@ import (
 	"math"
 	"net"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -16,6 +17,12 @@ import (
 	"ergo.services/proto/erlang23"
 	"ergo.services/proto/erlang23/etf"
 )
+
+type messageResult struct {
+	Error  error
+	Result any
+	Ref    gen.Ref
+}
 
 // DIST proto
 // https://www.erlang.org/doc/apps/erts/erl_dist_protocol#protocol-between-connected-nodes
@@ -70,6 +77,9 @@ type connection struct {
 	monitorsPeerNode    lib.Map[gen.Ref, any] // gen.Ref => gen.PID or gen.Atom
 	monitorsPeerNodeRef lib.Map[any, gen.Ref] // gen.PID, gen.Atom => gen.Ref
 	monitorsNodePeer    lib.Map[any, gen.Ref]
+
+	requestsMutex sync.RWMutex
+	requests      map[gen.Ref]chan messageResult
 
 	terminated bool
 
@@ -380,23 +390,58 @@ func (c *connection) DemonitorEvent(pid gen.PID, target gen.Event) error {
 }
 
 func (c *connection) RemoteSpawn(name gen.Atom, options gen.ProcessOptionsExtra) (gen.PID, error) {
+	var nopid gen.PID
 	if c.peer_erlang_flags.IsEnabled(erlang23.FlagSpawn) == false {
-		return gen.PID{}, gen.ErrUnsupported
+		return nopid, gen.ErrUnsupported
 	}
-	// optlist := etf.List{}
-	// if request.Options.Name != "" {
-	// 	optlist = append(optlist, etf.Tuple{etf.Atom("name"), etf.Atom(request.Options.Name)})
-	//
-	// }
-	// msg := &sendMessage{
-	// 	control: etf.Tuple{distProtoSPAWN_REQUEST, request.Ref, request.From, request.From,
-	// 		// {M,F,A}
-	// 		etf.Tuple{etf.Atom(behaviorName), etf.Atom(request.Options.Function), len(args)},
-	// 		optlist,
-	// 	},
-	// 	payload: args,
-	// }
-	return gen.PID{}, nil
+	mf := strings.Split(string(name), ":")
+	if len(mf) != 2 || len(mf[0]) == 0 || len(mf[1]) == 0 {
+		return nopid, fmt.Errorf("incorrect name. expected format \"module:function\"")
+	}
+
+	spawnOptions := etf.List{}
+	if options.Register != "" {
+		spawnOptions = append(spawnOptions, etf.Tuple{gen.Atom("name"), options.Register})
+	}
+
+	ref := c.core.MakeRef()
+	ch := make(chan messageResult)
+	c.requestsMutex.Lock()
+	c.requests[ref] = ch
+	c.requestsMutex.Unlock()
+
+	// {29, ReqId, From, GroupLeader, {Module, Function, Arity}, OptList}
+	control := etf.Tuple{
+		distProtoSPAWN_REQUEST,
+		ref,
+		options.ParentPID,
+		options.ParentLeader,
+		etf.Tuple{ // {module, function, arity}
+			gen.Atom(mf[0]),
+			gen.Atom(mf[1]),
+			len(options.Args),
+		},
+		spawnOptions,
+	}
+	if len(options.Args) == 0 {
+		options.Args = nil
+	}
+	if err := c.send(control, options.Args); err != nil {
+		c.requestsMutex.Lock()
+		delete(c.requests, ref)
+		c.requestsMutex.Unlock()
+		return nopid, err
+	}
+
+	result := c.waitResult(ref, ch)
+	if result.Error != nil {
+		return nopid, result.Error
+	}
+	pid, ok := result.Result.(gen.PID)
+	if ok == false {
+		return nopid, gen.ErrMalformed
+	}
+	return pid, nil
 }
 
 func (c *connection) Join(conn net.Conn, id string, dial gen.NetworkDial, tail []byte) error {
@@ -888,7 +933,6 @@ func (c *connection) handleDistMessage(control etf.Term, payload etf.Term) (err 
 						registerName = prop.Element(2).(gen.Atom)
 						continue
 					}
-					fmt.Println("OPTS", prop.Element(1), prop.Element(2))
 				}
 				//
 				ref := t.Element(2).(gen.Ref)
@@ -946,11 +990,29 @@ func (c *connection) handleDistMessage(control etf.Term, payload etf.Term) (err 
 				return nil
 
 			case distProtoSPAWN_REPLY:
-				// TODO
+				result := messageResult{}
 				// {31, ReqId, To, Flags, Result}
-				// ref := t.Element(2).(gen.Ref)
-				// to := t.Element(3).(gen.PID)
-				// c.core.RouteSpawnReply(to, ref, t.Element(5))
+				result.Ref = t.Element(2).(gen.Ref)
+				c.requestsMutex.RLock()
+				ch, found := c.requests[result.Ref]
+				c.requestsMutex.RUnlock()
+				if found == false {
+					// late reply
+					return nil
+				}
+
+				switch r := t.Element(5).(type) {
+				case gen.PID:
+					result.Result = r
+				case gen.Atom:
+					result.Error = fmt.Errorf("%s", string(r))
+				}
+
+				select {
+				case ch <- result:
+				default:
+				}
+
 				return nil
 
 			default:
@@ -1190,4 +1252,23 @@ func (c *connection) send(control, payload any) error {
 
 	lib.ReleaseBuffer(packetBuffer)
 	return nil
+}
+
+func (c *connection) waitResult(ref gen.Ref, ch chan messageResult) (result messageResult) {
+
+	timer := lib.TakeTimer()
+	defer lib.ReleaseTimer(timer)
+	timer.Reset(time.Second * time.Duration(gen.DefaultRequestTimeout))
+
+	select {
+	case <-timer.C:
+		result.Error = gen.ErrTimeout
+	case result = <-ch:
+	}
+
+	c.requestsMutex.Lock()
+	delete(c.requests, ref)
+	c.requestsMutex.Unlock()
+
+	return
 }

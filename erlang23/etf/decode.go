@@ -607,7 +607,7 @@ func Decode(packet []byte, cache []gen.Atom, options DecodeOptions) (retTerm Ter
 		case ettNil:
 			// for registered types we should use a nil value
 			// otherwise - treat it as an empty list
-			if stack.reg != nil {
+			if stack != nil && stack.reg != nil {
 				term = nil
 			} else {
 				term = termNil

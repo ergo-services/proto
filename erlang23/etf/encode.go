@@ -594,6 +594,16 @@ func Encode(term Term, b *lib.Buffer, options EncodeOptions) (retErr error) {
 		case gen.Ref:
 			buf := b.Extend(3)
 
+			// use t.ID[0] and t.ID[1] + half of t.ID[2]
+			// 64 + 64 + 32 = 5 * 32
+			lenID := uint16(5)
+			// check last 3 bits
+			if l := (t.ID[2] & 7); l > 0 {
+				// erlang's ref. it keeps the num of used IDs
+				lenID = uint16(l)
+			}
+			binary.BigEndian.PutUint16(buf[1:3], lenID)
+
 			child = &stackElement{
 				parent:   stack,
 				term:     t,
@@ -601,22 +611,6 @@ func Encode(term Term, b *lib.Buffer, options EncodeOptions) (retErr error) {
 			}
 			buf[0] = ettNewerRef
 			child.termType = ettNewerRef
-
-			// use t.ID[0] and t.ID[1] (64 + 64 = 4 * 32)
-			lenID := uint16(4)
-			// check last 3 bits
-			if l := (t.ID[2] & 7); l > 0 {
-				// erlang's ref. it keeps the num of used IDs
-				lenID = uint16(l)
-			} else {
-				// set ergo-integrity flag
-				t.ID[0] |= 1 << 63
-				t.ID[2] |= 4
-			}
-
-			// LEN a 16-bit big endian unsigned integer not larger
-			// than 5 when the FlagBigPidRef has been set; otherwise not larger than 3.
-			binary.BigEndian.PutUint16(buf[1:3], lenID)
 
 		case Map:
 			lenMap := len(t)
@@ -640,7 +634,7 @@ func Encode(term Term, b *lib.Buffer, options EncodeOptions) (retErr error) {
 		case ListImproper:
 			if len(t) == 0 {
 				b.AppendByte(ettNil)
-				continue
+				break
 			}
 			lenList := len(t) - 1
 			buf := b.Extend(5)
@@ -657,7 +651,7 @@ func Encode(term Term, b *lib.Buffer, options EncodeOptions) (retErr error) {
 			lenList := len(t)
 			if lenList == 0 {
 				b.AppendByte(ettNil)
-				continue
+				break
 			}
 			buf := b.Extend(5)
 			buf[0] = ettList
@@ -753,7 +747,7 @@ func Encode(term Term, b *lib.Buffer, options EncodeOptions) (retErr error) {
 
 				if lenList == 0 {
 					b.AppendByte(ettNil)
-					continue
+					break
 				}
 
 				buf := b.Extend(5)

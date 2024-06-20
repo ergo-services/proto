@@ -66,6 +66,8 @@ func (d *dist) NewConnection(core gen.Core, result gen.HandshakeResult, log gen.
 
 		monitors: createMonitors(),
 		links:    createLinks(),
+
+		requests: make(map[gen.Ref]chan messageResult),
 	}
 
 	// init recv queues. create 4 recv queues per connection
