@@ -13,6 +13,7 @@ The Erlang Network Stack (EPMD, ETF and DIST) implementation for the Ergo Framew
 Supports OTP-23...OTP-27
 
 For commercial or production purposes, it is necessary to purchase a subscription. [Buy licence](https://github.com/sponsors/ergo-services).
+
 If you need support for an earlier version of Erlang, please contact support@ergo.services.
 
 Doc: https://docs.ergo.services/extra-library/network-protocols/erlang23
