@@ -16,5 +16,5 @@ For commercial or production purposes, it is necessary to purchase a subscriptio
 
 If you need support for an earlier version of Erlang, please contact support@ergo.services.
 
-Doc: https://docs.ergo.services/extra-library/network-protocols/erlang23
+Doc: https://docs.ergo.services/extra-library/network-protocols/erlang
 
