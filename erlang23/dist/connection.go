@@ -433,6 +433,10 @@ func (c *connection) RemoteSpawn(name gen.Atom, options gen.ProcessOptionsExtra)
 		return nopid, err
 	}
 
+	// Erlang's remote spawn always returns a pid
+	// https://github.com/erlang/otp/issues/8603#issuecomment-2185870109
+	// Weird design, but it is what it is.
+
 	result := c.waitResult(ref, ch)
 	if result.Error != nil {
 		return nopid, result.Error
