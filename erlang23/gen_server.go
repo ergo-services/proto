@@ -200,7 +200,7 @@ func (gs *GenServer) ProcessRun() (rr error) {
 					}
 
 					gs.SendResponse(message.From, ref, result)
-
+					continue
 				}
 
 				// I have no words how worst Erlang's approach to get
