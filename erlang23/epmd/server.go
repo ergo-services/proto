@@ -214,11 +214,12 @@ func (s *server) readAliveReq(req []byte) (string, registeredNode, error) {
 }
 
 func (s *server) sendAliveResp(conn net.Conn, code int) error {
-	buf := make([]byte, 4)
-	buf[0] = epmdAliveResp
+	buf := make([]byte, 6)
+	buf[0] = epmdAliveRespX
 	buf[1] = byte(code)
 
-	binary.BigEndian.PutUint16(buf[2:], uint16(1))
+	now := uint32(time.Now().Unix())
+	binary.BigEndian.PutUint32(buf[2:], now)
 	_, err := conn.Write(buf)
 	return err
 }

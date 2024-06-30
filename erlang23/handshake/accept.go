@@ -202,7 +202,6 @@ func (h *handshake) readNameFlagsVersion(b []byte, result *gen.HandshakeResult) 
 
 func (h *handshake) readNameFlagsVersion6(b []byte, result *gen.HandshakeResult) error {
 	result.PeerCreation = int64(binary.BigEndian.Uint32(b[8:12]))
-
 	peerFlags := erlang23.Flags(binary.BigEndian.Uint64(b[0:8]))
 	if peerFlags.IsEnabled(erlang23.FlagBigCreation) == false {
 		// we do not support Erlang version earlier than OTP-23
