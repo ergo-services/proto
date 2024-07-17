@@ -232,7 +232,8 @@ func (c *connection) SendEvent(from gen.PID, options gen.MessageOptions, message
 }
 
 func (c *connection) SendExit(from gen.PID, to gen.PID, reason error) error {
-	return nil
+	control := etf.Tuple{distProtoEXIT, from, to, reason}
+	return c.send(control, nil)
 }
 
 func (c *connection) SendResponse(from gen.PID, to gen.PID, ref gen.Ref, options gen.MessageOptions, response any) error {
@@ -283,15 +284,27 @@ func (c *connection) SendTerminateEvent(target gen.Event, reason error) error {
 	return gen.ErrUnsupported
 }
 
-func (c *connection) CallPID(ref gen.Ref, from gen.PID, to gen.PID, options gen.MessageOptions, message any) error {
+func (c *connection) CallPID(ref gen.Ref, from gen.PID, to gen.PID, options gen.MessageOptions, request any) error {
 	if to.Creation != c.peer_creation {
 		return gen.ErrProcessIncarnation
 	}
-	return nil
+	control := etf.Tuple{distProtoSEND, gen.Atom(""), to}
+	message := etf.Tuple{
+		gen.Atom("$gen_call"),
+		etf.Tuple{from, ref},
+		request,
+	}
+	return c.send(control, message)
 }
 
-func (c *connection) CallProcessID(ref gen.Ref, from gen.PID, to gen.ProcessID, options gen.MessageOptions, message any) error {
-	return nil
+func (c *connection) CallProcessID(ref gen.Ref, from gen.PID, to gen.ProcessID, options gen.MessageOptions, request any) error {
+	control := etf.Tuple{distProtoREG_SEND, from, gen.Atom(""), to.Name}
+	message := etf.Tuple{
+		gen.Atom("$gen_call"),
+		etf.Tuple{from, ref},
+		request,
+	}
+	return c.send(control, message)
 }
 
 func (c *connection) CallAlias(ref gen.Ref, from gen.PID, to gen.Alias, options gen.MessageOptions, message any) error {
