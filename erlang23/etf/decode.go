@@ -18,8 +18,8 @@ import (
 type stackElement struct {
 	parent   *stackElement
 	reg      *reflect.Value // used for registered types decoding
-	term     Term           //value
-	tmp      Term           // temporary value. used as a temporary storage for a key of map
+	term     any            //value
+	tmp      any            // temporary value. used as a temporary storage for a key of map
 	i        int            // current
 	children int
 	termType byte
@@ -82,8 +82,8 @@ type DecodeOptions struct {
 // see comments within this function
 
 // Decode
-func Decode(packet []byte, cache []gen.Atom, options DecodeOptions) (retTerm Term, retByte []byte, retErr error) {
-	var term Term
+func Decode(packet []byte, cache []gen.Atom, options DecodeOptions) (retTerm any, retByte []byte, retErr error) {
+	var term any
 	var stack *stackElement
 	var child *stackElement
 	var t byte
@@ -220,7 +220,7 @@ func Decode(packet []byte, cache []gen.Atom, options DecodeOptions) (retTerm Ter
 			}
 
 			i := int(packet[0])
-			term = int(i)
+			term = int64(i)
 			packet = packet[1:]
 
 			if stack == nil {

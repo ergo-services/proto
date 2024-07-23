@@ -565,7 +565,7 @@ func (c *connection) serve(tail []byte) {
 }
 
 func (c *connection) handleRecvQueue(q lib.QueueMPSC) {
-	var control, payload etf.Term
+	var control, payload any
 
 	if lib.Recover() {
 		defer func() {
@@ -733,7 +733,7 @@ func (c *connection) wait() {
 	c.wg.Wait()
 }
 
-func (c *connection) handleDistMessage(control etf.Term, payload etf.Term) (err error) {
+func (c *connection) handleDistMessage(control any, payload any) (err error) {
 	defer func() {
 		if lib.Recover() {
 			if r := recover(); r != nil {
@@ -745,7 +745,7 @@ func (c *connection) handleDistMessage(control etf.Term, payload etf.Term) (err 
 	switch t := control.(type) {
 	case etf.Tuple:
 		switch act := t.Element(1).(type) {
-		case int:
+		case int64:
 			switch act {
 			case distProtoREG_SEND:
 				// {6, FromPid, Unused, ToName}

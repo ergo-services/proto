@@ -52,7 +52,7 @@ type EncodeOptions struct {
 }
 
 // Encode
-func Encode(term Term, b *lib.Buffer, options EncodeOptions) (retErr error) {
+func Encode(term any, b *lib.Buffer, options EncodeOptions) (retErr error) {
 	if lib.Recover() {
 		defer func() {
 			// We should catch any panic happened during encoding Golang types.

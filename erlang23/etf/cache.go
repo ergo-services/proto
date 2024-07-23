@@ -134,7 +134,7 @@ func TakeEncodingAtomCache() *EncodingAtomCache {
 func ReleaseEncodingAtomCache(l *EncodingAtomCache) {
 	l.L = l.original[:0]
 	if len(l.added) > 0 {
-		for k, _ := range l.added {
+		for k := range l.added {
 			delete(l.added, k)
 		}
 	}
@@ -146,7 +146,7 @@ func (l *EncodingAtomCache) Reset() {
 	l.L = l.original[:0]
 	l.HasLongAtom = false
 	if len(l.added) > 0 {
-		for k, _ := range l.added {
+		for k := range l.added {
 			delete(l.added, k)
 		}
 	}

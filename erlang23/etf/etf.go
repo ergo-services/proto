@@ -77,20 +77,17 @@ type registerType struct {
 	strict bool
 }
 
-// Term
-type Term interface{}
-
 // Tuple
-type Tuple []Term
+type Tuple []any
 
 // List
-type List []Term
+type List []any
 
 // ListImproper as a workaround for the Erlang's improper list [a|b]. Intended to be used to interact with Erlang.
-type ListImproper []Term
+type ListImproper []any
 
 // Map
-type Map map[Term]Term
+type Map map[any]any
 
 // String this type is intended to be used to interact with Erlang. String value encodes as a binary (Erlang type: <<...>>)
 type String string
@@ -141,28 +138,28 @@ type Function struct{}
 type Export struct{}
 
 // Element
-func (m Map) Element(k Term) Term {
+func (m Map) Element(k any) any {
 	return m[k]
 }
 
 // Element
-func (l List) Element(i int) Term {
+func (l List) Element(i int) any {
 	return l[i-1]
 }
 
 // Element
-func (t Tuple) Element(i int) Term {
+func (t Tuple) Element(i int) any {
 	return t[i-1]
 }
 
 // ProplistElement
 type ProplistElement struct {
 	Name  gen.Atom
-	Value Term
+	Value any
 }
 
 // TermToString transforms given term (Atom, []byte, List) to the string
-func TermToString(t Term) (s string, ok bool) {
+func TermToString(t any) (s string, ok bool) {
 	ok = true
 	switch x := t.(type) {
 	case gen.Atom:
@@ -189,7 +186,7 @@ func TermToString(t Term) (s string, ok bool) {
 // where Name can be string or Atom and Value must be the same type as
 // it has the field of 'dest' struct with the equivalent name. Its also
 // accepts []ProplistElement as a 'term' value
-func TermProplistIntoStruct(term Term, dest any) (err error) {
+func TermProplistIntoStruct(term any, dest any) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("%v", r)
@@ -199,11 +196,11 @@ func TermProplistIntoStruct(term Term, dest any) (err error) {
 	return setProplist(term, v)
 }
 
-// TermIntoStruct transforms 'term' (etf.Term, etf.List, etf.Tuple, etf.Map) into the
+// TermIntoStruct transforms 'term' (etf.List, etf.Tuple, etf.Map) into the
 // given 'dest' (could be a struct, map, slice or array). Its a pretty
 // expencive operation in terms of CPU usage so you shouldn't use it
 // on highload parts of your code. Use manual type casting instead.
-func TermIntoStruct(term Term, dest any) (err error) {
+func TermIntoStruct(term any, dest any) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("%v", r)
@@ -214,7 +211,7 @@ func TermIntoStruct(term Term, dest any) (err error) {
 	return
 }
 
-func termIntoStruct(term Term, dest reflect.Value) error {
+func termIntoStruct(term any, dest reflect.Value) error {
 
 	if term == nil {
 		return nil
@@ -419,7 +416,7 @@ func setListField(term List, dest reflect.Value) error {
 	return nil
 }
 
-func setProplist(term Term, dest reflect.Value) error {
+func setProplist(term any, dest reflect.Value) error {
 	switch v := term.(type) {
 	case []ProplistElement:
 		return setProplistElementField(v, dest)
@@ -602,11 +599,11 @@ type RegisterTypeOptions struct {
 	Strict bool
 }
 
-// RegisterType registers new type with the given options. It returns a Name
+// RegisterTypeOf registers new type with the given options. It returns a Name
 // of the registered type, which can be used in the UnregisterType function
 // for unregistering this type. Supported types: struct, slice, array, map.
 // Returns an error if this type can not be registered.
-func RegisterType(t any, options RegisterTypeOptions) (gen.Atom, error) {
+func RegisterTypeOf(t any, options RegisterTypeOptions) (gen.Atom, error) {
 	switch t.(type) {
 	case gen.PID, gen.Ref, gen.Alias:
 		return "", fmt.Errorf("types gen.PID, gen.Ref, gen.Alias can not be registered")
@@ -713,29 +710,16 @@ func RegisterType(t any, options RegisterTypeOptions) (gen.Atom, error) {
 	return name, nil
 }
 
-// UnregisterType unregisters type with a given name.
-func UnregisterType(name gen.Atom) error {
-	registered.Lock()
-	defer registered.Unlock()
-	r, found := registered.typesDec[name]
-	if found == false {
-		return gen.ErrUnknown
-	}
-	delete(registered.typesDec, name)
-	delete(registered.typesEnc, r.origin)
-	return nil
-}
-
 type StructPopulatorError struct {
 	Type reflect.Type
-	Term Term
+	Term any
 }
 
 func (s *StructPopulatorError) Error() string {
 	return fmt.Sprintf("Cannot put %#v into go value of type %s", s.Term, s.Type.Kind().String())
 }
 
-func NewInvalidTypesError(t reflect.Type, term Term) error {
+func NewInvalidTypesError(t reflect.Type, term any) error {
 	return &StructPopulatorError{
 		Type: t,
 		Term: term,
@@ -743,7 +727,7 @@ func NewInvalidTypesError(t reflect.Type, term Term) error {
 }
 
 type InvalidStructKeyError struct {
-	Term Term
+	Term any
 }
 
 func (s *InvalidStructKeyError) Error() string {
