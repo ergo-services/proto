@@ -210,16 +210,29 @@ func (c *connection) SendPID(from gen.PID, to gen.PID, options gen.MessageOption
 	if to.Creation != c.peer_creation {
 		return gen.ErrProcessIncarnation
 	}
+
+	if options.ImportantDelivery {
+		return gen.ErrUnsupported
+	}
+
 	control := etf.Tuple{distProtoSEND, gen.Atom(""), to}
 	return c.send(control, message)
 }
 
 func (c *connection) SendProcessID(from gen.PID, to gen.ProcessID, options gen.MessageOptions, message any) error {
+	if options.ImportantDelivery {
+		return gen.ErrUnsupported
+	}
+
 	control := etf.Tuple{distProtoREG_SEND, from, gen.Atom(""), to.Name}
 	return c.send(control, message)
 }
 
 func (c *connection) SendAlias(from gen.PID, to gen.Alias, options gen.MessageOptions, message any) error {
+	if options.ImportantDelivery {
+		return gen.ErrUnsupported
+	}
+
 	if c.peer_erlang_flags.IsEnabled(erlang23.FlagAlias) == false {
 		return gen.ErrUnsupported
 	}
@@ -249,6 +262,10 @@ func (c *connection) SendResponse(from gen.PID, to gen.PID, ref gen.Ref, options
 	// send reply as a regular message
 	message := etf.Tuple{ref, response}
 	return c.SendPID(from, to, gen.MessageOptions{}, message)
+}
+
+func (c *connection) SendResponseError(from gen.PID, to gen.PID, ref gen.Ref, options gen.MessageOptions, err error) error {
+	return gen.ErrUnsupported
 }
 
 func (c *connection) SendTerminatePID(target gen.PID, reason error) error {
