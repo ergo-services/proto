@@ -1,8 +1,9 @@
 package handshake
 
 import (
-	"ergo.services/ergo/gen"
 	"runtime/debug"
+
+	"ergo.services/ergo/gen"
 )
 
 const (
@@ -14,7 +15,7 @@ var (
 	Version = gen.Version{
 		Name:    handshakeName,
 		Release: handshakeRelease,
-		License: gen.LicenseBSL1,
+		License: gen.LicenseMIT,
 	}
 )
 

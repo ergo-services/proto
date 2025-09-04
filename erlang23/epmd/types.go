@@ -1,9 +1,10 @@
 package epmd
 
 import (
-	"ergo.services/ergo/gen"
 	"runtime/debug"
 	"time"
+
+	"ergo.services/ergo/gen"
 )
 
 const (
@@ -26,7 +27,7 @@ var (
 	Version = gen.Version{
 		Name:    registrarName,
 		Release: registrarRelease,
-		License: gen.LicenseBSL1,
+		License: gen.LicenseMIT,
 	}
 )
 

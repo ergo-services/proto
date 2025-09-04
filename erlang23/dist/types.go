@@ -55,7 +55,7 @@ var (
 	Version = gen.Version{
 		Name:    protoName,
 		Release: protoRelease,
-		License: gen.LicenseBSL1,
+		License: gen.LicenseMIT,
 	}
 )
 
