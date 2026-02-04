@@ -10,7 +10,7 @@ Extra library of network protocols for the Ergo Framework 3.0 (and above)
 
 The Erlang Network Stack (EPMD, ETF and DIST) implementation for the Ergo Framework
 
-Supports OTP-23...OTP-28
+Supports OTP-23 and higher
 
 If you need support for an earlier version of Erlang, please contact support@ergo.services.
 
