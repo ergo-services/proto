@@ -38,7 +38,7 @@ type CacheItem struct {
 
 var (
 	encodingAtomCachePool = &sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			l := &EncodingAtomCache{
 				L:     make([]CacheItem, 0, 255),
 				added: make(map[gen.Atom]uint8),

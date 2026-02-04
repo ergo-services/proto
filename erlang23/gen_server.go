@@ -54,7 +54,7 @@ func (gs *GenServer) TrapExit() bool {
 	return gs.trap
 }
 
-// Caet send cast-message to Erlang-process
+// Cast sends cast-message to Erlang-process
 func (gs *GenServer) Cast(to any, message any) error {
 	msg := etf.Tuple{
 		gen.Atom("$gen_cast"),

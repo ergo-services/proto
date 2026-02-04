@@ -34,7 +34,7 @@ func (d *dist) NewConnection(core gen.Core, result gen.HandshakeResult, log gen.
 
 	opts, ok := result.Custom.(erlang23.ConnectionOptions)
 	if ok == false {
-		return nil, fmt.Errorf("unsupported type in gen.HandshakeResult.Costom")
+		return nil, fmt.Errorf("unsupported type in gen.HandshakeResult.Custom")
 	}
 
 	log.Trace("create new connection with %s", result.Peer)
