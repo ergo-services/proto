@@ -47,6 +47,12 @@ func (h *handshake) Version() gen.Version {
 	return Version
 }
 
+func (h *handshake) Reject(conn net.Conn, reason string) error {
+	// Erlang DIST protocol has no reject message at the Hello stage.
+	// Closing the connection is sufficient to signal rejection.
+	return nil
+}
+
 func (h *handshake) readMessage(conn net.Conn, timeout time.Duration, chunk []byte) ([]byte, []byte, error) {
 	var b [4096]byte
 
