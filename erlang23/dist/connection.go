@@ -6,7 +6,6 @@ import (
 	"io"
 	"math"
 	"net"
-	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -173,6 +172,9 @@ func (c *connection) SpawnRegister(register gen.Atom, name gen.Atom, options gen
 	return c.RemoteSpawn(name, opts)
 }
 
+func (c *connection) ApplicationInfo(name gen.Atom) (gen.ApplicationInfo, error) {
+	return gen.ApplicationInfo{}, gen.ErrUnsupported
+}
 func (c *connection) ApplicationStart(name gen.Atom, options gen.ApplicationOptions) error {
 	return gen.ErrUnsupported
 }
@@ -600,9 +602,8 @@ func (c *connection) handleRecvQueue(q lib.QueueMPSC) {
 	if lib.Recover() {
 		defer func() {
 			if r := recover(); r != nil {
-				pc, fn, line, _ := runtime.Caller(2)
-				c.log.Panic("panic on handling received DIST message: %#v at %s[%s:%d]",
-					r, runtime.FuncForPC(pc).Name(), fn, line)
+				c.log.Panic("panic on handling received DIST message: %#v at %s",
+					r, lib.PanicOrigin())
 				c.Terminate(gen.TerminateReasonPanic)
 			}
 		}()

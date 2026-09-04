@@ -3,7 +3,6 @@ package erlang23
 import (
 	"errors"
 	"fmt"
-	"runtime"
 
 	"ergo.services/ergo/gen"
 	"ergo.services/ergo/lib"
@@ -78,9 +77,8 @@ func (gs *GenServer) ProcessInit(process gen.Process, args ...any) (rr error) {
 	if lib.Recover() {
 		defer func() {
 			if r := recover(); r != nil {
-				pc, fn, line, _ := runtime.Caller(2)
-				gs.Log().Panic("GenServer initialization failed. Panic reason: %#v at %s[%s:%d]",
-					r, runtime.FuncForPC(pc).Name(), fn, line)
+				gs.Log().Panic("GenServer initialization failed. Panic reason: %#v at %s",
+					r, lib.PanicOrigin())
 				rr = gen.TerminateReasonPanic
 			}
 		}()
@@ -98,9 +96,8 @@ func (gs *GenServer) ProcessRun() (rr error) {
 	if lib.Recover() {
 		defer func() {
 			if r := recover(); r != nil {
-				pc, fn, line, _ := runtime.Caller(2)
-				gs.Log().Panic("GenServer terminated. Panic reason: %#v at %s[%s:%d]",
-					r, runtime.FuncForPC(pc).Name(), fn, line)
+				gs.Log().Panic("GenServer terminated. Panic reason: %#v at %s",
+					r, lib.PanicOrigin())
 				rr = gen.TerminateReasonPanic
 			}
 		}()
@@ -337,6 +334,13 @@ func (gs *GenServer) ProcessRun() (rr error) {
 }
 func (gs *GenServer) ProcessTerminate(reason error) {
 	gs.behavior.Terminate(reason)
+}
+
+// ProcessKind reports this process as an Erlang gen_server. It is not built on
+// act.Actor, so it names itself rather than borrowing one of the framework
+// kinds.
+func (gs *GenServer) ProcessKind() gen.ProcessKind {
+	return ProcessKindGenServer
 }
 
 //

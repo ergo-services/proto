@@ -14,7 +14,11 @@ import (
 	"ergo.services/proto/erlang23"
 )
 
-func (h *handshake) Accept(node gen.NodeHandshake, conn net.Conn, options gen.HandshakeOptions) (gen.HandshakeResult, error) {
+func (h *handshake) Accept(node gen.NodeHandshake, conn net.Conn, options gen.HandshakeOptions, state gen.HandshakeResult) (gen.HandshakeResult, error) {
+	return state, nil
+}
+
+func (h *handshake) Negotiate(node gen.NodeHandshake, conn net.Conn, options gen.HandshakeOptions) (gen.HandshakeResult, error) {
 	var result gen.HandshakeResult
 	var chunk []byte
 	var message []byte
@@ -113,6 +117,7 @@ func (h *handshake) Accept(node gen.NodeHandshake, conn net.Conn, options gen.Ha
 			}
 
 			// handshaked
+			result.Tail = chunk
 			return result, nil
 		}
 	}

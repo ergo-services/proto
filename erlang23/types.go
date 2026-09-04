@@ -1,5 +1,12 @@
 package erlang23
 
+import "ergo.services/ergo/gen"
+
+// ProcessKindGenServer is what a process built on GenServer reports to
+// gen.ProcessBehavior.ProcessKind, so an inspector names it for what it is
+// instead of falling back to a bare custom behavior.
+const ProcessKindGenServer gen.ProcessKind = "gen_server"
+
 const (
 	// distribution flags are defined here https://erlang.org/doc/apps/erts/erl_dist_protocol.html#distribution-flags
 	FlagPublished          Flag = 0x1

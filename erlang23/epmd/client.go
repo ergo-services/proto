@@ -108,7 +108,7 @@ func (c *client) Resolve(nodename gen.Atom) ([]gen.Route, error) {
 	return []gen.Route{route}, nil
 }
 
-func (c *client) ResolveApplication(name gen.Atom) ([]gen.ApplicationRoute, error) {
+func (c *client) ResolveApplication(name gen.Atom) (gen.ApplicationRoutes, error) {
 	return nil, gen.ErrUnsupported
 }
 func (c *client) ResolveProxy(node gen.Atom) ([]gen.ProxyRoute, error) {
